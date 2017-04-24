@@ -71,6 +71,7 @@ In addition, a document with a `tablename` of "schema" denotes a csvx schema, sp
 In general, empty cells are not allowed unless `NULLABLE` is found in `constraints`. If set, an empty cell is considered to be of the special value `NULL` when empty.
 
 * `STRING`: An arbitrary string. An empty string shall be allowed and interpreted as such if `NULLABLE` is not set.
+* `BOOL`: A boolean value, either `TRUE` or `FALSE`.
 * `INTEGER`: A base 10 integer, with no leading zeroes.
 * `ENUM(VAR1,VAR2,...)`: Any literal `VAR1`, `VAR2`, ...
 * `DECIMAL`: A base 10 floating point number of arbitrary precision (it is up to the reader to decide how many decimal places to keep). The only non-digit character allowed is the decimal point `.`.
