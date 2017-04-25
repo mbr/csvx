@@ -21,16 +21,57 @@ struct CsvxMetadata {
     pub is_schema: bool,
 }
 
+#[inline]
+fn cap<T>(c: &regex::Captures, idx: usize) -> T
+    where T: std::str::FromStr,
+          T::Err: std::fmt::Debug
+{
+    println!("TRYING: {:?}", c.get(idx));
+
+    safe_unwrap!("input validated via regular expression",
+                 safe_unwrap!("valid regex group index", c.get(idx))
+                     .as_str()
+                     .parse())
+
+}
+
 fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
     lazy_static! {
         // `tablename_date_schema-schemaversion_csvxversion.csvx`
-        static ref FN_RE: Regex = Regex::new(r"^([a-z][a-z0-9_].*)-\d.*$")
-        .expect("built-in Regex is broken. Please file a bug");
+        static ref FN_RE: Regex = Regex::new(
+            r"^([a-z][a-zA-Z0-9-]*)_(\d{4})(\d{2})(\d{2})_([a-z][a-zA-Z0-9-]*)-(\d+)_(\d+).csv(x?)$"
+        ).expect("built-in Regex is broken. Please file a bug");
     }
+
     println!("Input: {:?}", filename.as_ref());
     println!("Result: {:?}", FN_RE.find(filename.as_ref()));
 
-    unimplemented!()
+    match FN_RE.captures(filename.as_ref()) {
+        Some(caps) => {
+            let table_name = safe_unwrap!("known group", caps.get(1))
+                .as_str()
+                .to_string();
+            let year = cap(&caps, 2);
+            let month = cap(&caps, 3);
+            let day = cap(&caps, 4);
+            let schema = safe_unwrap!("known group", caps.get(5))
+                .as_str()
+                .to_string();
+            let schema_version = cap(&caps, 6);
+            let csvx_version = cap(&caps, 7);
+            let trailing_x = safe_unwrap!("known group", caps.get(8));
+
+            Some(CsvxMetadata {
+                     table_name: table_name,
+                     date: NaiveDate::from_ymd(year, month, day),
+                     schema: schema,
+                     schema_version: schema_version,
+                     csvx_version: csvx_version,
+                     is_schema: trailing_x.start() != trailing_x.end(),
+                 })
+        }
+        None => None,
+    }
 }
 
 fn main() {
