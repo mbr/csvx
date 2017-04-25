@@ -1,0 +1,7 @@
+[package]
+authors = ["Marc Brinkmann <git@marcbrinkmann.de>"]
+name = "csvx"
+version = "2.0.0"
+
+[dependencies]
+clap = "2.23.3"
