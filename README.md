@@ -28,9 +28,9 @@ Each file shall be named using according to the following structure: `tablename_
 
 ### Example
 
-A csvx export of a zoo's animal database, exported on April 17th, 2017, using the `animals` schema, version 3, being exported as csvx version 2 should have the following filename:
+A csvx export of a zoo's animal database, exported on April 17th, 2017, using the `animals` schema, version 2, being exported as csvx version 3 should have the following filename:
 
-`all_20170417_animals-3_3.csv`
+`all_20170417_animals-2_3.csv`
 
 (`all` has been chose as the `tablename` portion).
 
@@ -84,7 +84,7 @@ In general, empty cells are not allowed unless `NULLABLE` is found in `constrain
 
 An example schema for a zoo could look like this:
 
-`schema_20170101_animals-3_3.csvx`
+`schema_20170101_animals-2_3.csvx`
 
 ```
 id,type,constraints,description
@@ -100,7 +100,7 @@ caretaker,STRING,NULLABLE,Designated caretaker. May be empty if none assigned.
 
 A valid data file for this schema:
 
-`zoo-nyc_20170401_animals-3_3.csv`
+`zoo-nyc_20170401_animals-2_3.csv`
 
 ```
 id,name,birthday,weight,class,species,yearly_food_cost,caretaker
