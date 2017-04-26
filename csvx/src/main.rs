@@ -16,9 +16,7 @@ struct CsvxMetadata {
     pub table_name: String,
     pub date: NaiveDate,
     pub schema: String,
-    pub schema_version: usize,
     pub csvx_version: usize,
-    pub is_schema: bool,
 }
 
 #[inline]
@@ -39,7 +37,7 @@ fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
     lazy_static! {
         // `tablename_date_schema-schemaversion_csvxversion.csvx`
         static ref FN_RE: Regex = Regex::new(
-            r"^([a-z][a-zA-Z0-9-]*)_(\d{4})(\d{2})(\d{2})_([a-z][a-zA-Z0-9-]*)-(\d+)_(\d+).csv(x?)$"
+            r"^([a-z][a-zA-Z0-9-]*)_(\d{4})(\d{2})(\d{2})_([a-z][a-zA-Z0-9-]*)_(\d+).csv$"
         ).expect("built-in Regex is broken. Please file a bug");
     }
 
@@ -57,17 +55,13 @@ fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
             let schema = safe_unwrap!("known group", caps.get(5))
                 .as_str()
                 .to_string();
-            let schema_version = cap(&caps, 6);
-            let csvx_version = cap(&caps, 7);
-            let trailing_x = safe_unwrap!("known group", caps.get(8));
+            let csvx_version = cap(&caps, 6);
 
             Some(CsvxMetadata {
                      table_name: table_name,
                      date: NaiveDate::from_ymd(year, month, day),
                      schema: schema,
-                     schema_version: schema_version,
                      csvx_version: csvx_version,
-                     is_schema: trailing_x.start() != trailing_x.end(),
                  })
         }
         None => None,
@@ -94,9 +88,9 @@ fn main() {
         Some(ref cmd) if cmd.name == "check" => {
             let schema_file = safe_unwrap!("required argument",
                                            cmd.matches.value_of("schema_file"));
-            // first, check filename of schema file
-            parse_filename(schema_file);
-            // println!("{:?}", m);
+
+            let meta = parse_filename(schema_file).expect("filename is not in valid format");
+            println!("{:?}", meta);
         }
         _ => app.write_help(&mut io::stdout()).unwrap(),
     }
@@ -122,10 +116,8 @@ mod test {
                    CsvxMetadata {
                        table_name: "zoo-nyc".to_owned(),
                        date: NaiveDate::from_ymd(2017, 04, 01),
-                       schema: "animals".to_owned(),
-                       schema_version: 2,
+                       schema: "animals-2".to_owned(),
                        csvx_version: 3,
-                       is_schema: false,
                    });
     }
 
