@@ -7,24 +7,12 @@ extern crate regex;
 extern crate safe_unwrap;
 extern crate try_from;
 
-use chrono::NaiveDate;
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use clap::{App, Arg, SubCommand};
 use std::{io, path};
 use regex::Regex;
 use safe_unwrap::SafeUnwrap;
 use try_from::TryFrom;
-
-lazy_static! {
-    static ref IDENT_RE: Regex = Regex::new(
-        r"^[a-z][a-z0-9]*$"
-    ).safe_unwrap("built-in Regex is broken. Please file a bug");
-}
-
-lazy_static! {
-    static ref IDENT_HYPHEN_RE: Regex = Regex::new(
-        r"^[a-z][a-z0-9-]*$"
-    ).safe_unwrap("built-in Regex is broken. Please file a bug");
-}
 
 lazy_static! {
     static ref IDENT_UNDERSCORE_RE: Regex = Regex::new(
@@ -41,6 +29,30 @@ lazy_static! {
 lazy_static! {
     static ref CONSTRAINT_RE: Regex = Regex::new(
         r"^(:?(?:NULLABLE|UNIQUE),?)*$"
+    ).safe_unwrap("built-in Regex is broken. Please file a bug");
+}
+
+lazy_static! {
+    static ref DECIMAL_RE: Regex = Regex::new(
+        r"^\d+(\.\d+)?$"
+    ).safe_unwrap("built-in Regex is broken. Please file a bug");
+}
+
+lazy_static! {
+    static ref DATE_RE: Regex = Regex::new(
+        r"^(\d{4})(\d{2})(\d{2})$"
+    ).safe_unwrap("built-in Regex is broken. Please file a bug");
+}
+
+lazy_static! {
+    static ref DATETIME_RE: Regex = Regex::new(
+        r"^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$"
+    ).safe_unwrap("built-in Regex is broken. Please file a bug");
+}
+
+lazy_static! {
+    static ref TIME_RE: Regex = Regex::new(
+        r"^(\d{2})(\d{2})(\d{2})$"
     ).safe_unwrap("built-in Regex is broken. Please file a bug");
 }
 
@@ -66,6 +78,21 @@ enum SchemaLoadError {
     BadIdentifier(usize, String),
     BadType(usize, ColumnTypeError),
     BadConstraints(usize, ColumnConstraintsError),
+}
+
+#[derive(Debug)]
+enum ValidationError {
+    Csv(csv::Error),
+    MissingHeaders,
+    HeaderMismatch(usize, String),
+    RowLengthMismatch(usize),
+    ValueError(usize, usize, ValueError),
+}
+
+impl From<csv::Error> for ValidationError {
+    fn from(e: csv::Error) -> ValidationError {
+        ValidationError::Csv(e)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -180,6 +207,114 @@ struct CsvxColumnType {
     description: String,
 }
 
+#[derive(Debug)]
+enum Value {
+    String(String),
+    Bool(bool),
+    Integer(i64),
+    Enum(String),
+    Decimal(String),
+    Date(NaiveDate),
+    DateTime(NaiveDateTime),
+    Time(NaiveTime),
+}
+
+#[derive(Debug)]
+enum ValueError {
+    NonNullable,
+    InvalidBool,
+    InvalidInt,
+    InvalidEnum,
+    InvalidDecimal,
+    InvalidDate,
+    InvalidDateTime,
+    InvalidTime,
+}
+
+impl From<std::num::ParseIntError> for ValueError {
+    fn from(_: std::num::ParseIntError) -> ValueError {
+        ValueError::InvalidInt
+    }
+}
+
+impl CsvxColumnType {
+    fn validate_value<S: AsRef<str>>(&self, s: &S) -> Result<Option<Value>, ValueError> {
+        // FIXME: check UNIQUE
+
+        // null check
+        if s.as_ref() == "" {
+            if self.constraints.nullable {
+                return Ok(None);
+            } else {
+                return Err(ValueError::NonNullable);
+            }
+        }
+
+        match self.ty {
+            ColumnType::String => Ok(Some(Value::String(s.as_ref().to_string()))),
+            ColumnType::Bool => {
+                match s.as_ref() {
+                    "TRUE" => Ok(Some(Value::Bool(true))),
+                    "FALSE" => Ok(Some(Value::Bool(false))),
+                    _ => Err(ValueError::InvalidBool),
+                }
+            }
+            ColumnType::Integer => {
+                // FIXME: check for leading zeros
+                Ok(Some(Value::Integer(s.as_ref().parse()?)))
+            }
+            ColumnType::Enum(ref variants) => {
+                let v = s.as_ref().to_owned();
+                if variants.contains(&v) {
+                    Ok(Some(Value::Enum(v)))
+                } else {
+                    Err(ValueError::InvalidEnum)
+                }
+            }
+            ColumnType::Decimal => {
+                if !DECIMAL_RE.is_match(s.as_ref()) {
+                    Ok(Some(Value::Decimal(s.as_ref().to_owned())))
+                } else {
+                    Err(ValueError::InvalidDecimal)
+                }
+            }
+            ColumnType::Date => {
+                match DATE_RE.captures(s.as_ref()) {
+                    Some(ref c) => {
+                        Ok(Some(Value::Date(NaiveDate::from_ymd_opt(cap(c, 1),
+                                                                    cap(c, 2),
+                                                                    cap(c, 3))
+                                                    .ok_or(ValueError::InvalidDate)?)))
+                    }
+                    None => Err(ValueError::InvalidDate),
+                }
+            }
+            ColumnType::DateTime => {
+                match DATETIME_RE.captures(s.as_ref()) {
+                    Some(ref c) => {
+                        let dt = NaiveDate::from_ymd_opt(cap(c, 1), cap(c, 2), cap(c, 3))
+                            .ok_or(ValueError::InvalidDate)?;
+                        Ok(Some(Value::DateTime(dt.and_hms_opt(cap(c, 4), cap(c, 5), cap(c, 6))
+                                                    .ok_or(ValueError::InvalidTime)?)))
+                    }
+                    None => Err(ValueError::InvalidDateTime),
+                }
+            }
+            ColumnType::Time => {
+                match TIME_RE.captures(s.as_ref()) {
+                    Some(ref c) => {
+                        Ok(Some(Value::Time(NaiveTime::from_hms_opt(cap(c, 1),
+                                                                    cap(c, 2),
+                                                                    cap(c, 3))
+                                                    .ok_or(ValueError::InvalidTime)?)))
+                    }
+                    None => Err(ValueError::InvalidTime),
+                }
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 struct CsvxSchema {
     columns: Vec<CsvxColumnType>,
@@ -247,7 +382,47 @@ impl CsvxSchema {
                 Ok(CsvxSchema { columns: columns })
             }
         }
+    }
 
+    fn validate_file<P: AsRef<path::Path>>(&self, filename: P) -> Result<(), ValidationError> {
+        let mut rdr = csv::Reader::from_file(filename)?.has_headers(true);
+
+        let headers = rdr.headers()?;
+
+        if headers.len() != self.columns.len() {
+            return Err(ValidationError::MissingHeaders);
+        }
+
+        for (idx, (spec, actual)) in self.columns.iter().zip(headers.iter()).enumerate() {
+            if spec.id.as_str() != actual {
+                return Err(ValidationError::HeaderMismatch(idx + 1, actual.to_string()));
+            }
+        }
+
+        for (rowid, row) in rdr.records().enumerate() {
+            let lineno = rowid + 2;
+
+            let fields = row?;
+
+            if fields.len() != self.columns.len() {
+                return Err(ValidationError::RowLengthMismatch(lineno));
+            }
+
+            for (idx, (col, value)) in self.columns.iter().zip(fields.iter()).enumerate() {
+                if let Err(e) = col.validate_value(value) {
+                    let col_idx = idx + 1;
+                    println!("Value Error in line {}, column {}. Value: {}.
+                        Error: {:?}",
+                             lineno,
+                             col_idx,
+                             value,
+                             e);
+                    return Err(ValidationError::ValueError(lineno, col_idx, e));
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -256,8 +431,6 @@ fn cap<T>(c: &regex::Captures, idx: usize) -> T
     where T: std::str::FromStr,
           T::Err: std::fmt::Debug
 {
-    println!("TRYING: {:?}", c.get(idx));
-
     c.get(idx)
         .safe_unwrap("valid group")
         .as_str()
@@ -291,7 +464,10 @@ fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
 
             Some(CsvxMetadata {
                      table_name: table_name,
-                     date: NaiveDate::from_ymd(year, month, day),
+                     date: match NaiveDate::from_ymd_opt(year, month, day) {
+                         Some(d) => d,
+                         None => return None,
+                     },
                      schema: schema,
                      csvx_version: csvx_version,
                  })
@@ -333,7 +509,14 @@ fn main() {
             // load schema
             let schema = CsvxSchema::from_file(schema_file).unwrap();
 
-            println!("{:?}", schema);
+            let input_files = cmd.matches.values_of("input_files");
+
+            if let Some(ifs) = input_files {
+                for input_file in ifs {
+                    println!("Validating {}", input_file);
+                    schema.validate_file(input_file).unwrap();
+                }
+            }
         }
         _ => app.write_help(&mut io::stdout()).unwrap(),
     }
