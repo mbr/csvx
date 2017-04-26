@@ -67,11 +67,11 @@ In addition, a document with a schema of `csvx-schema` denotes a csvx schema, sp
 
 In general, empty cells are not allowed unless `NULLABLE` is found in `constraints`. If set, an empty cell is considered to be of the special value `NULL` when empty.
 
-* `STRING`: An arbitrary string. An empty string shall be allowed and interpreted as such if `NULLABLE` is not set.
+* `STRING`: An arbitrary string.
 * `BOOL`: A boolean value, either `TRUE` or `FALSE`.
-* `INTEGER`: A base 10 integer, with no leading zeroes.
+* `INTEGER`: A base 10, signed, 64-Bit integer, with no leading zeroes.
 * `ENUM(VAR1,VAR2,...)`: Any literal `VAR1`, `VAR2`, ...
-* `DECIMAL`: A base 10 floating point number of arbitrary precision (it is up to the reader to decide how many decimal places to keep). The only non-digit character allowed is the decimal point `.`.
+* `DECIMAL`: A base 10 floating point number of arbitrary precision (it is up to the reader to decide how many decimal places to keep). The only non-digit character allowed is the decimal point `.`, at most once.
 * `DATE`: An 8-digit date, in the form of `YYYYmmDD`.
 * `DATETIME`: A 14-digit timestamp, in the form of `YYYYmmDDHHMMSS`
 * `TIME`: A 6-digit time, in the form of `HHMMSS`.
