@@ -59,7 +59,7 @@ lazy_static! {
 lazy_static! {
     // `tablename_date_schema-schemaversion_csvxversion.csvx`
     static ref FN_RE: Regex = Regex::new(
-        r"^([a-z][a-z0-9-]*)_(\d{4})(\d{2})(\d{2})_([a-z][a-z0-9-]*)_(\d+).csv$"
+        r"^([a-z][a-z0-9-]*)_(\d{4})(\d{2})(\d{2})_([a-z][a-z0-9-]*).csv$"
     ).expect("built-in Regex is broken. Please file a bug");
 }
 
@@ -68,12 +68,11 @@ struct CsvxMetadata {
     pub table_name: String,
     pub date: NaiveDate,
     pub schema: String,
-    pub csvx_version: usize,
 }
 
 impl CsvxMetadata {
     fn is_schema(&self) -> bool {
-        self.schema == "csvx-schema"
+        self.schema.starts_with("csvx-schema-")
     }
 }
 
@@ -458,7 +457,6 @@ fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
                 .safe_unwrap("known group")
                 .as_str()
                 .to_string();
-            let csvx_version = cap(&caps, 6);
 
             Some(CsvxMetadata {
                      table_name: table_name,
@@ -467,7 +465,6 @@ fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
                          None => return None,
                      },
                      schema: schema,
-                     csvx_version: csvx_version,
                  })
         }
         None => None,
@@ -543,12 +540,11 @@ mod test {
 
     #[test]
     fn filename_parsing_parses_valid() {
-        assert_eq!(parse_filename("zoo-nyc_20170401_animals-2_3.csv").unwrap(),
+        assert_eq!(parse_filename("zoo-nyc_20170401_animals-2.csv").unwrap(),
                    CsvxMetadata {
                        table_name: "zoo-nyc".to_owned(),
                        date: NaiveDate::from_ymd(2017, 04, 01),
                        schema: "animals-2".to_owned(),
-                       csvx_version: 3,
                    });
     }
 
