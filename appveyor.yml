@@ -19,7 +19,8 @@ install:
   - rustc -vV
   - cargo -vV
 
-build: false
+build_script:
+  - cargo build --release
 
 test_script:
   - cargo test %cargoflags%
