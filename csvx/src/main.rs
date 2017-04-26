@@ -279,7 +279,7 @@ impl CsvxColumnType {
                 }
             }
             ColumnType::Decimal => {
-                if !DECIMAL_RE.is_match(s.as_ref()) {
+                if DECIMAL_RE.is_match(s.as_ref()) {
                     Ok(Some(Value::Decimal(s.as_ref().to_owned())))
                 } else {
                     Err(ValueError::InvalidDecimal)
