@@ -347,8 +347,6 @@ impl CsvxSchema {
             Some(res) => {
                 let fields = res?;
 
-                println!("{:?}", fields);
-
                 if fields.0 != "id" || fields.1 != "type" || fields.2 != "constraints" ||
                    fields.3 != "description" {
 
@@ -503,6 +501,7 @@ fn main() {
                 .expect("Not a valid filename")
                 .to_str()
                 .safe_unwrap("From valid UTF8");
+            println!("Loading schema {:?}", meta_fn);
             let meta = parse_filename(meta_fn).expect("schema filename is not
                 in valid format");
 
