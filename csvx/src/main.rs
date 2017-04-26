@@ -123,7 +123,7 @@ impl<S> TryFrom<S> for ColumnConstraints
         }
 
         for fragment in s.as_ref().split(',') {
-            match s.as_ref() {
+            match fragment.as_ref() {
                 "NULLABLE" => {
                     ccs.nullable = true;
                 }
