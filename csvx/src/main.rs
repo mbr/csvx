@@ -10,6 +10,31 @@ use std::io;
 use chrono::NaiveDate;
 use clap::{App, Arg, SubCommand};
 use regex::Regex;
+use safe_unwrap::SafeUnwrap;
+
+lazy_static! {
+    static ref IDENT_RE: Regex = Regex::new(
+        r"^[a-z][a-z0-9]*$"
+    ).safe_unwrap("built-in Regex is broken. Please file a bug");
+}
+
+lazy_static! {
+    static ref IDENT_HYPHEN_RE: Regex = Regex::new(
+        r"^[a-z][a-z0-9-]*$"
+    ).safe_unwrap("built-in Regex is broken. Please file a bug");
+}
+
+lazy_static! {
+    static ref IDENT_UNDERSCORE_RE: Regex = Regex::new(
+        r"^[a-z][a-z0-9_]*$"
+    ).safe_unwrap("built-in Regex is broken. Please file a bug");
+}
+
+lazy_static! {
+    static ref ENUM_EXPR_RE: Regex = Regex::new(
+        r"^ENUM.*\(((?:[A-Z][A-Z0-9]*,?)*)\)$"
+    ).safe_unwrap("built-in Regex is broken. Please file a bug");
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct CsvxMetadata {
@@ -26,10 +51,11 @@ fn cap<T>(c: &regex::Captures, idx: usize) -> T
 {
     println!("TRYING: {:?}", c.get(idx));
 
-    safe_unwrap!("input validated via regular expression",
-                 safe_unwrap!("valid regex group index", c.get(idx))
-                     .as_str()
-                     .parse())
+    c.get(idx)
+        .safe_unwrap("valid group")
+        .as_str()
+        .parse()
+        .safe_unwrap("already validated through regex")
 
 }
 
@@ -37,22 +63,21 @@ fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
     lazy_static! {
         // `tablename_date_schema-schemaversion_csvxversion.csvx`
         static ref FN_RE: Regex = Regex::new(
-            r"^([a-z][a-zA-Z0-9-]*)_(\d{4})(\d{2})(\d{2})_([a-z][a-zA-Z0-9-]*)_(\d+).csv$"
+            r"^([a-z][a-z0-9-]*)_(\d{4})(\d{2})(\d{2})_([a-z][a-z0-9-]*)_(\d+).csv$"
         ).expect("built-in Regex is broken. Please file a bug");
     }
 
-    println!("Input: {:?}", filename.as_ref());
-    println!("Result: {:?}", FN_RE.find(filename.as_ref()));
-
     match FN_RE.captures(filename.as_ref()) {
         Some(caps) => {
-            let table_name = safe_unwrap!("known group", caps.get(1))
+            let table_name = caps.get(1)
+                .safe_unwrap("known group")
                 .as_str()
                 .to_string();
             let year = cap(&caps, 2);
             let month = cap(&caps, 3);
             let day = cap(&caps, 4);
-            let schema = safe_unwrap!("known group", caps.get(5))
+            let schema = caps.get(5)
+                .safe_unwrap("known group")
                 .as_str()
                 .to_string();
             let csvx_version = cap(&caps, 6);
@@ -86,8 +111,9 @@ fn main() {
 
     match m.subcommand {
         Some(ref cmd) if cmd.name == "check" => {
-            let schema_file = safe_unwrap!("required argument",
-                                           cmd.matches.value_of("schema_file"));
+            let schema_file = cmd.matches
+                .value_of("schema_file")
+                .safe_unwrap("required argument");
 
             let meta = parse_filename(schema_file).expect("filename is not in valid format");
             println!("{:?}", meta);
