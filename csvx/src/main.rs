@@ -34,7 +34,7 @@ lazy_static! {
 
 lazy_static! {
     static ref DECIMAL_RE: Regex = Regex::new(
-        r"^\d+(\.\d+)?$"
+        r"^\d+(?:\.\d+)?$"
     ).safe_unwrap("built-in Regex is broken. Please file a bug");
 }
 
