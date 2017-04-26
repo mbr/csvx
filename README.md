@@ -1,4 +1,4 @@
-csvx (Version 3)
+csvx (Version 4)
 ================
 
 **csvx** is an attempt to define a precise CSV-based specification with no ambiguities to exchange table-based data. In goes further than [RFC4180](https://tools.ietf.org/html/rfc4180), but every file that conforms to csvx should also conform to RFC4180.
@@ -18,21 +18,18 @@ Basics
 Metadata
 --------
 
-Each file shall be named using according to the following structure: `tablename_date_schema-schemaversion_csvxversion.csv`.
+Each file shall be named using according to the following structure: `tablename_date_schema_csvxversion.csv`.
 
 * `tablename` shall be arbitrary *identifier with hyphens*, other than "schema", which is reserved.
 * `date` shall be a *date string*, denoting a date associated with the file (*e.g.* the export date of the data within).
 * `schema` shall be an *identifier* for the schema used (see below).
-* `schemaversion` shall be an *integer string*, denoting the version of the `schema`.
 * `csvxversion` shall be an *integer string* denoting the csvx version used.
 
 ### Example
 
-A csvx export of a zoo's animal database, exported on April 17th, 2017, using the `animals` schema, version 2, being exported as csvx version 3 should have the following filename:
+A csvx export of a zoo's animal database (called `all`), exported on April 17th, 2017, using the `animals-2` schema, being exported as csvx version 4 should have the following filename:
 
-`all_20170417_animals-2_3.csv`
-
-(`all` has been chose as the `tablename` portion).
+`all_20170417_animals-2_4.csv`
 
 
 Format and encoding
@@ -59,7 +56,7 @@ csvx files may be compressed using either [gzip](https://tools.ietf.org/html/rfc
 csvx schemas
 ------------
 
-In addition, a document with a `tablename` of "schema" and an extension of `.csvx` denotes a csvx schema, specifing rules and types for columns. A *column* is identified by its *header*. The following *column headers* make up the *header* *row* in a schema file, with the following column contents:
+In addition, a document with a schema of `csvx-schema` denotes a csvx schema, specifing rules and types for columns. A *column* is identified by its *header*. The following *column headers* make up the *header* *row* in a schema file, with the following column contents:
 
 * `id`: An *identifier with underscores*, unique among columns
 * `type`: One of (`STRING`, `INTEGER`, `ENUM(...)`, `DECIMAL`, `DATE`, `DATETIME`, `TIME`). The `...` is a comma-separated list of uppercase identifiers.
@@ -84,7 +81,7 @@ In general, empty cells are not allowed unless `NULLABLE` is found in `constrain
 
 An example schema for a zoo could look like this:
 
-`schema_20170101_animals-2_3.csvx`
+`animals-2_20170101_csvx-schema_4.csv`
 
 ```
 id,type,constraints,description
@@ -100,7 +97,7 @@ caretaker,STRING,NULLABLE,Designated caretaker. May be empty if none assigned.
 
 A valid data file for this schema:
 
-`zoo-nyc_20170401_animals-2_3.csv`
+`zoo-nyc_20170401_animals-2_4.csv`
 
 ```
 id,name,birthday,weight,class,species,yearly_food_cost,caretaker
