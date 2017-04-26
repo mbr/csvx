@@ -56,6 +56,13 @@ lazy_static! {
     ).safe_unwrap("built-in Regex is broken. Please file a bug");
 }
 
+lazy_static! {
+    // `tablename_date_schema-schemaversion_csvxversion.csvx`
+    static ref FN_RE: Regex = Regex::new(
+        r"^([a-z][a-z0-9-]*)_(\d{4})(\d{2})(\d{2})_([a-z][a-z0-9-]*)_(\d+).csv$"
+    ).expect("built-in Regex is broken. Please file a bug");
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct CsvxMetadata {
     pub table_name: String,
@@ -440,13 +447,6 @@ fn cap<T>(c: &regex::Captures, idx: usize) -> T
 }
 
 fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
-    lazy_static! {
-        // `tablename_date_schema-schemaversion_csvxversion.csvx`
-        static ref FN_RE: Regex = Regex::new(
-            r"^([a-z][a-z0-9-]*)_(\d{4})(\d{2})(\d{2})_([a-z][a-z0-9-]*)_(\d+).csv$"
-        ).expect("built-in Regex is broken. Please file a bug");
-    }
-
     match FN_RE.captures(filename.as_ref()) {
         Some(caps) => {
             let table_name = caps.get(1)
