@@ -89,7 +89,7 @@ id,INTEGER,UNIQUE,Internal zoo id
 name,STRING,,Name of the animal
 birthday,DATE,,The animals birthday
 weight,INTEGER,,Weight in g
-class,ENUM(MAMMAL,BIRD,REPTILE,INSECT),,Class of species
+class,"ENUM(MAMMAL,BIRD,REPTILE,INSECT)",,Class of species
 species,STRING,,Species
 yearly_food_cost,DECIMAL,,Last year's cost for feed for animal
 caretaker,STRING,NULLABLE,Designated caretaker. May be empty if none assigned.
