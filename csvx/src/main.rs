@@ -498,7 +498,13 @@ fn main() {
                 .value_of("schema_file")
                 .safe_unwrap("required argument");
 
-            let meta = parse_filename(schema_file).expect("filename is not in valid format");
+            let meta_fn = path::Path::new(schema_file)
+                .file_name()
+                .expect("Not a valid filename")
+                .to_str()
+                .safe_unwrap("From valid UTF8");
+            let meta = parse_filename(meta_fn).expect("schema filename is not
+                in valid format");
 
             if !meta.is_schema() {
                 println!("The supplied file {} is not a csvx schema (wrong filename)",
