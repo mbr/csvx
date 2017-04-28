@@ -7,8 +7,11 @@ extern crate regex;
 extern crate safe_unwrap;
 extern crate try_from;
 
+mod err;
+
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use clap::{App, Arg, SubCommand};
+use err::{ColumnConstraintsError, ColumnTypeError, SchemaLoadError, ValidationError, ValueError};
 use std::{io, path};
 use regex::Regex;
 use safe_unwrap::SafeUnwrap;
@@ -76,34 +79,10 @@ impl CsvxMetadata {
     }
 }
 
-#[derive(Debug)]
-enum SchemaLoadError {
-    Csv(csv::Error),
-    MissingHeader,
-    BadHeader,
-    BadIdentifier(usize, String),
-    BadType(usize, ColumnTypeError),
-    BadConstraints(usize, ColumnConstraintsError),
-}
-
-#[derive(Debug)]
-enum ValidationError {
-    Csv(csv::Error),
-    MissingHeaders,
-    HeaderMismatch(usize, String),
-    RowLengthMismatch(usize),
-    ValueError(usize, usize, ValueError),
-}
-
 impl From<csv::Error> for ValidationError {
     fn from(e: csv::Error) -> ValidationError {
         ValidationError::Csv(e)
     }
-}
-
-#[derive(Clone, Debug)]
-enum ColumnTypeError {
-    UnknownType,
 }
 
 #[derive(Clone, Debug)]
@@ -131,12 +110,6 @@ impl Default for ColumnConstraints {
             unique: false,
         }
     }
-}
-
-#[derive(Clone, Debug)]
-enum ColumnConstraintsError {
-    MalformedConstraint,
-    UnknownConstraint(String),
 }
 
 impl<S> TryFrom<S> for ColumnConstraints
@@ -223,18 +196,6 @@ enum Value {
     Date(NaiveDate),
     DateTime(NaiveDateTime),
     Time(NaiveTime),
-}
-
-#[derive(Debug)]
-enum ValueError {
-    NonNullable,
-    InvalidBool,
-    InvalidInt,
-    InvalidEnum,
-    InvalidDecimal,
-    InvalidDate,
-    InvalidDateTime,
-    InvalidTime,
 }
 
 impl From<std::num::ParseIntError> for ValueError {
@@ -324,12 +285,6 @@ impl CsvxColumnType {
 #[derive(Clone, Debug)]
 struct CsvxSchema {
     columns: Vec<CsvxColumnType>,
-}
-
-impl From<csv::Error> for SchemaLoadError {
-    fn from(e: csv::Error) -> SchemaLoadError {
-        SchemaLoadError::Csv(e)
-    }
 }
 
 impl CsvxSchema {
