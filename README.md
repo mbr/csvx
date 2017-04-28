@@ -9,8 +9,8 @@ Basics
 
 * An **identifier** shall be a string matching the following regular expression: `[a-z][a-z0-9]*`.
 * An **uppercase identifier** shall be a string matching the following regular expression: `[A-Z][A-Z0-9]*`
-* An **identifier with underscores** shall be a string matching the following regular expression: `[a-z][a-z0-9\-]`.
-* An **identifier with hyphens** shall be a string matching the following regular expression: `[a-z][a-z0-9_]`.
+* An **identifier with underscores** shall be a string matching the following regular expression: `[a-z][a-z0-9_]`.
+* An **identifier with hyphens** shall be a string matching the following regular expression: `[a-z][a-z0-9\-]`.
 * A **date string** shall be a string matching the following regular expression: `\d{4}\d{2}\d{2}`, with the digit groups denoting *year, month, date* in exactly that order.
 * An **integer string** shall be a string matching the following regular expression: `(0|[1-9][0-9]*)`, to be interpreted as a base 10 integer.
 
