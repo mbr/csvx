@@ -499,8 +499,7 @@ fn main() {
                 .to_str()
                 .safe_unwrap("From valid UTF8");
             println!("Loading schema {:?}", meta_fn);
-            let meta = parse_filename(meta_fn).expect("schema filename is not
-                in valid format");
+            let meta = parse_filename(meta_fn).expect("schema filename is not in valid format");
 
             if !meta.is_schema() {
                 println!("The supplied file {} is not a csvx schema (wrong filename)",
