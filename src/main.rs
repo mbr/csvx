@@ -415,8 +415,7 @@ impl CsvxSchema {
             for (idx, (col, value)) in self.columns.iter().zip(fields.iter()).enumerate() {
                 if let Err(e) = col.validate_value(value) {
                     let col_idx = idx + 1;
-                    println!("Value Error in line {}, column {}. Value: {}.
-                        Error: {:?}",
+                    println!("Value Error in line {}, column {}. Value: {}. Error: {:?}",
                              lineno,
                              col_idx,
                              value,
@@ -473,7 +472,7 @@ fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
 
 fn main() {
     let app = App::new("csvx")
-        .version("5.0.1")
+        .version("5.0.2")
         .about("csvx utility")
         .subcommand(SubCommand::with_name("check")
                         .about("Check csvx files for conformance")
