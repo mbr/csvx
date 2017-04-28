@@ -473,7 +473,7 @@ fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
 
 fn main() {
     let app = App::new("csvx")
-        .version("5.0.0")
+        .version("5.0.1")
         .about("csvx utility")
         .subcommand(SubCommand::with_name("check")
                         .about("Check csvx files for conformance")
