@@ -425,13 +425,42 @@ fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
     }
 }
 
+fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>(schema_path: P, input_files: Vec<Q>) {
+    let meta_fn = schema_path
+        .as_ref()
+        .to_owned()
+        .file_name()
+        .expect("Not a valid filename")
+        .to_str()
+        .safe_unwrap("From valid UTF8")
+        .to_owned();
+
+    println!("Loading schema {:?}", meta_fn);
+    let meta = parse_filename(meta_fn).expect("schema filename is not in valid format");
+
+    if !meta.is_schema() {
+        println!("The supplied file {:?} is not a csvx schema (wrong
+            filename)",
+                 schema_path.as_ref());
+        return;
+    }
+
+    // load schema
+    let schema = CsvxSchema::from_file(schema_path).unwrap();
+
+    for input_file in input_files {
+        println!("Validating {:?}", input_file.as_ref());
+        schema.validate_file(input_file).unwrap();
+    }
+}
+
 fn main() {
     let app = App::new("csvx")
         .version("5.0.2")
         .about("csvx utility")
         .subcommand(SubCommand::with_name("check")
                         .about("Check csvx files for conformance")
-                        .arg(Arg::with_name("schema_file")
+                        .arg(Arg::with_name("schema_path")
                                  .help("Schema file to check against")
                                  .required(true)
                                  .takes_value(true))
@@ -443,35 +472,13 @@ fn main() {
 
     match m.subcommand {
         Some(ref cmd) if cmd.name == "check" => {
-            let schema_file = cmd.matches
-                .value_of("schema_file")
-                .safe_unwrap("required argument");
-
-            let meta_fn = path::Path::new(schema_file)
-                .file_name()
-                .expect("Not a valid filename")
-                .to_str()
-                .safe_unwrap("From valid UTF8");
-            println!("Loading schema {:?}", meta_fn);
-            let meta = parse_filename(meta_fn).expect("schema filename is not in valid format");
-
-            if !meta.is_schema() {
-                println!("The supplied file {} is not a csvx schema (wrong filename)",
-                         schema_file);
-                return;
-            }
-
-            // load schema
-            let schema = CsvxSchema::from_file(schema_file).unwrap();
-
-            let input_files = cmd.matches.values_of("input_files");
-
-            if let Some(ifs) = input_files {
-                for input_file in ifs {
-                    println!("Validating {}", input_file);
-                    schema.validate_file(input_file).unwrap();
-                }
-            }
+            cmd_check(cmd.matches
+                          .value_of("schema_path")
+                          .safe_unwrap("required argument"),
+                      cmd.matches
+                          .values_of("input_files")
+                          .map(|v| v.collect())
+                          .unwrap_or_else(|| Vec::new()))
         }
         _ => app.write_help(&mut io::stdout()).unwrap(),
     }
