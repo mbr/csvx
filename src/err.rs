@@ -1,4 +1,27 @@
 use csv;
+use term_painter::{Color, ToStyle};
+
+#[derive(Debug)]
+pub enum CheckError {
+    NotASchema,
+    InvalidSchemaFilename,
+    SchemaLoadError(SchemaLoadError),
+    SchemaPathInvalid,
+    SchemaPathUtf8Error,
+}
+
+impl CheckError {
+    pub fn print_help(&self) {
+
+        println!("{}: {:?}", Color::Red.paint("Error"), self);
+    }
+}
+
+impl From<SchemaLoadError> for CheckError {
+    fn from(e: SchemaLoadError) -> CheckError {
+        CheckError::SchemaLoadError(e)
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum ColumnConstraintsError {

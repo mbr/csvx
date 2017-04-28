@@ -5,14 +5,16 @@ extern crate csv;
 extern crate lazy_static;
 extern crate regex;
 extern crate safe_unwrap;
+extern crate term_painter;
 extern crate try_from;
 
 mod err;
 
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use clap::{App, Arg, SubCommand};
-use err::{ColumnConstraintsError, ColumnTypeError, SchemaLoadError, ValidationError, ValueError};
-use std::{io, path};
+use err::{CheckError, ColumnConstraintsError, ColumnTypeError, SchemaLoadError, ValidationError,
+          ValueError};
+use std::{io, path, process};
 use regex::Regex;
 use safe_unwrap::SafeUnwrap;
 use try_from::TryFrom;
@@ -425,33 +427,46 @@ fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
     }
 }
 
-fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>(schema_path: P, input_files: Vec<Q>) {
+/// Check input files against schema.
+///
+/// Fatal and schema errors are returned as errors; failing input files just
+/// result in a return value of `Ok(false)`.
+fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>(schema_path: P,
+                                                         input_files: Vec<Q>)
+                                                         -> Result<bool, CheckError> {
     let meta_fn = schema_path
         .as_ref()
         .to_owned()
         .file_name()
-        .expect("Not a valid filename")
+        .ok_or(CheckError::NotASchema)?
         .to_str()
-        .safe_unwrap("From valid UTF8")
+        .ok_or(CheckError::SchemaPathUtf8Error)?
         .to_owned();
 
     println!("Loading schema {:?}", meta_fn);
-    let meta = parse_filename(meta_fn).expect("schema filename is not in valid format");
+    // FIXME: expect
+    let meta = parse_filename(meta_fn)
+        .ok_or(CheckError::InvalidSchemaFilename)?;
 
     if !meta.is_schema() {
         println!("The supplied file {:?} is not a csvx schema (wrong
             filename)",
                  schema_path.as_ref());
-        return;
+        return Err(CheckError::NotASchema);
     }
 
     // load schema
-    let schema = CsvxSchema::from_file(schema_path).unwrap();
+    let schema = CsvxSchema::from_file(schema_path)?;
 
+    let mut all_good = true;
     for input_file in input_files {
         println!("Validating {:?}", input_file.as_ref());
+
+        // FIXME: collect errors
         schema.validate_file(input_file).unwrap();
     }
+
+    Ok(all_good)
 }
 
 fn main() {
@@ -470,18 +485,33 @@ fn main() {
                                  .takes_value(true)));
     let m = app.clone().get_matches();
 
-    match m.subcommand {
+    let res = match m.subcommand {
         Some(ref cmd) if cmd.name == "check" => {
-            cmd_check(cmd.matches
-                          .value_of("schema_path")
-                          .safe_unwrap("required argument"),
-                      cmd.matches
-                          .values_of("input_files")
-                          .map(|v| v.collect())
-                          .unwrap_or_else(|| Vec::new()))
+            let res = cmd_check(cmd.matches
+                                    .value_of("schema_path")
+                                    .safe_unwrap("required argument"),
+                                cmd.matches
+                                    .values_of("input_files")
+                                    .map(|v| v.collect())
+                                    .unwrap_or_else(|| Vec::new()));
+
+            match res {
+                Err(e) => {
+                    // display fatal error:
+                    e.print_help();
+                    process::exit(1);
+                }
+                Ok(result) => {
+                    // the errors have already been displayed by `cmd_check()`
+                    // we use exit status `2` for validation but non-fatal
+                    // errors
+                    process::exit(if result { 0 } else { 2 });
+                }
+            }
         }
         _ => app.write_help(&mut io::stdout()).unwrap(),
-    }
+    };
+
 }
 
 #[cfg(test)]
