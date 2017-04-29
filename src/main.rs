@@ -6,6 +6,8 @@ extern crate lazy_static;
 extern crate regex;
 extern crate safe_unwrap;
 extern crate term_painter;
+extern crate term_size;
+extern crate textwrap;
 extern crate try_from;
 
 mod err;

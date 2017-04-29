@@ -1,7 +1,9 @@
 use csv;
-use std::{error, fmt};
+use std::{cmp, error, fmt};
 use std::error::Error;
-use term_painter::{Color, ToStyle};
+use term_painter::{Attr, Color, ToStyle};
+use term_size;
+use textwrap;
 
 #[derive(Clone, Debug)]
 pub enum Location {
@@ -47,7 +49,24 @@ impl<E> ErrorWithLocation<E> {
 
 impl<E: fmt::Display> ErrorWithLocation<E> {
     pub fn print_help(&self) {
-        println!("{}: {}", Color::Red.paint("Error"), self);
+        println!("{}{} {}",
+                 Attr::Bold.paint((Color::Red.paint("error"))),
+                 Attr::Bold.paint(":"),
+                 Attr::Bold.paint(self.error()));
+        match *self.location() {
+            Location::Unspecified => (),
+            _ => println!("  --> {}", Color::Yellow.paint(self.location())),
+        }
+
+        let dims = term_size::dimensions().unwrap_or((80, 25));
+        let msg = "TBW";
+
+        let term_width = cmp::max(dims.0, 4);
+        let out = textwrap::wrap(msg, term_width - 3)
+            .into_iter()
+            .map(|line| textwrap::indent(line.as_str(), "   "))
+            .fold(String::new(), |s1, s2| s1 + s2.as_str());
+        println!("{}", out);
     }
 }
 

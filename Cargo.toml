@@ -11,4 +11,9 @@ lazy_static = "0.2.8"
 regex = "0.2.1"
 safe_unwrap = "0.2.0"
 term-painter = "0.2.3"
+term_size = "0.3.0"
 try_from = "0.2.1"
+
+[dependencies.textwrap]
+features = []
+version = "0.4"
