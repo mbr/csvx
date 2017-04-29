@@ -59,10 +59,9 @@ impl<E: fmt::Display> ErrorWithLocation<E> {
         }
 
         let dims = term_size::dimensions().unwrap_or((80, 25));
-        let msg = "TBW";
 
         let term_width = cmp::max(dims.0, 4);
-        let out = textwrap::wrap(msg, term_width - 3)
+        let out = textwrap::wrap(format!("{}", self.error).as_str(), term_width - 3)
             .into_iter()
             .map(|line| textwrap::indent(line.as_str(), "   "))
             .fold(String::new(), |s1, s2| s1 + s2.as_str());
