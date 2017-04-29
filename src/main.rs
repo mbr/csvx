@@ -217,12 +217,6 @@ enum Value {
     Time(NaiveTime),
 }
 
-impl From<std::num::ParseIntError> for ValueError {
-    fn from(_: std::num::ParseIntError) -> ValueError {
-        ValueError::InvalidInt
-    }
-}
-
 impl CsvxColumnType {
     fn validate_value<S: AsRef<str>>(&self, s: &S) -> Result<Option<Value>, ValueError> {
         // FIXME: check UNIQUE
@@ -242,26 +236,32 @@ impl CsvxColumnType {
                 match s.as_ref() {
                     "TRUE" => Ok(Some(Value::Bool(true))),
                     "FALSE" => Ok(Some(Value::Bool(false))),
-                    _ => Err(ValueError::InvalidBool),
+                    _ => Err(ValueError::InvalidBool(s.as_ref().to_owned())),
                 }
             }
             ColumnType::Integer => {
                 // FIXME: check for leading zeros
-                Ok(Some(Value::Integer(s.as_ref().parse()?)))
+                Ok(Some(Value::Integer(s.as_ref()
+                                           .parse()
+                                           .map_err(|_| {
+                                                        ValueError::InvalidInt(s.as_ref()
+                                                                                   .to_owned())
+                                                    })?)))
             }
             ColumnType::Enum(ref variants) => {
                 let v = s.as_ref().to_owned();
                 if variants.contains(&v) {
                     Ok(Some(Value::Enum(v)))
                 } else {
-                    Err(ValueError::InvalidEnum)
+                    Err(ValueError::InvalidEnum(s.as_ref().to_owned(),
+                        variants.clone()))
                 }
             }
             ColumnType::Decimal => {
                 if DECIMAL_RE.is_match(s.as_ref()) {
                     Ok(Some(Value::Decimal(s.as_ref().to_owned())))
                 } else {
-                    Err(ValueError::InvalidDecimal)
+                    Err(ValueError::InvalidDecimal(s.as_ref().to_owned()))
                 }
             }
             ColumnType::Date => {
@@ -270,20 +270,25 @@ impl CsvxColumnType {
                         Ok(Some(Value::Date(NaiveDate::from_ymd_opt(cap(c, 1),
                                                                     cap(c, 2),
                                                                     cap(c, 3))
-                                                    .ok_or(ValueError::InvalidDate)?)))
+              .ok_or_else(||{
+                      ValueError::InvalidDate(s.as_ref().to_owned ()) }
+                      )?)))
                     }
-                    None => Err(ValueError::InvalidDate),
+                    None => Err(ValueError::InvalidDate(s.as_ref().to_owned())),
                 }
             }
             ColumnType::DateTime => {
                 match DATETIME_RE.captures(s.as_ref()) {
                     Some(ref c) => {
-                        let dt = NaiveDate::from_ymd_opt(cap(c, 1), cap(c, 2), cap(c, 3))
-                            .ok_or(ValueError::InvalidDate)?;
+                        let dt =
+                            NaiveDate::from_ymd_opt(cap(c, 1), cap(c, 2), cap(c, 3))
+                                .ok_or_else(|| ValueError::InvalidDate(s.as_ref().to_string()))?;
                         Ok(Some(Value::DateTime(dt.and_hms_opt(cap(c, 4), cap(c, 5), cap(c, 6))
-                                                    .ok_or(ValueError::InvalidTime)?)))
+                                                    .ok_or_else(|| {
+                                                                    ValueError::InvalidTime (s.as_ref ().to_string ()) })?)))
                     }
-                    None => Err(ValueError::InvalidDateTime),
+                    None => Err(ValueError::InvalidDateTime(s.as_ref
+                        ().to_string())),
                 }
             }
             ColumnType::Time => {
@@ -292,9 +297,10 @@ impl CsvxColumnType {
                         Ok(Some(Value::Time(NaiveTime::from_hms_opt(cap(c, 1),
                                                                     cap(c, 2),
                                                                     cap(c, 3))
-                                                    .ok_or(ValueError::InvalidTime)?)))
+                                                    .ok_or_else(||
+                                                        ValueError::InvalidTime (s.as_ref ().to_string ()))?)))
                     }
-                    None => Err(ValueError::InvalidTime),
+                    None => Err(ValueError::InvalidTime(s.as_ref().to_string())),
                 }
             }
         }
@@ -419,18 +425,11 @@ impl CsvxSchema {
             // major csv issue
             let fields = row.map_err(|e| vec![e.at(Location::FileLine(filename_s.clone(), 1))])?;
 
-            if fields.len() != self.columns.len() {
-                errs.push(ValidationError::RowLengthMismatch
-                              .at(Location::FileLine(filename_s.clone(), lineno)));
-                continue;
-            }
-
             for (idx, (col, value)) in self.columns.iter().zip(fields.iter()).enumerate() {
                 if let Err(e) = col.validate_value(value) {
                     let col_idx = idx + 1;
 
-                    // FIXME: cloning the full column type is a wart here
-                    errs.push(ValidationError::ValueError(col.clone(), e)
+                    errs.push(ValidationError::ValueError(e)
                                   .at(Location::FileLineField(filename_s.clone(),
                                                               lineno,
                                                               col_idx)));

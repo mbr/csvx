@@ -483,23 +483,13 @@ pub enum ValidationError {
     /// Header in file does not match specification
     HeaderMismatch(String),
 
-    /// A row has a different length then all the others
-    RowLengthMismatch,
-
     /// A value error occured
-    ValueError(super::CsvxColumnType, ValueError),
+    ValueError(ValueError),
 }
 
 impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            ValidationError::ValueError(ref coltype, ref e) => {
-                write!(f,
-                       "could not parse field `{}` as `{}`: {}",
-                       coltype.id,
-                       coltype.ty,
-                       e)
-            }
             _ => {
                 if let Some(cause) = self.cause() {
                     write!(f, "{}", cause)
@@ -518,15 +508,14 @@ impl error::Error for ValidationError {
             ValidationError::Csv(_) => "invalid CSV",
             ValidationError::MissingHeaders => "missing headers",
             ValidationError::HeaderMismatch(_) => "header mismatch",
-            ValidationError::RowLengthMismatch => "row length mismatch",
-            ValidationError::ValueError(_, _) => "value error",
+            ValidationError::ValueError(_) => "value error",
         }
     }
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
             ValidationError::Csv(ref e) => Some(e),
-            ValidationError::ValueError(_, ref e) => Some(e),
+            ValidationError::ValueError(ref e) => Some(e),
             _ => None,
         }
     }
@@ -534,7 +523,20 @@ impl error::Error for ValidationError {
 
 impl Helpful for ValidationError {
     fn help(&self) -> String {
-        "FIXME".to_owned()
+        match *self {
+            ValidationError::Csv(_) => {
+                "An error occured parsing the CSV fragment. Please ensure \
+                the CSV file is valid CSVX and RFC4180."
+                        .to_owned()
+            }
+            ValidationError::MissingHeaders => {
+                "No headers were found, the file is empty.".to_owned()
+            }
+            ValidationError::HeaderMismatch(_) => {
+                "A header did not match the one specified.".to_owned()
+            }
+            ValidationError::ValueError(ref e) => e.help(),
+        }
     }
 }
 
@@ -550,32 +552,43 @@ pub enum ValueError {
     NonNullable,
 
     /// Invalid boolean value
-    InvalidBool,
+    InvalidBool(String),
 
     /// Invalid integer
-    InvalidInt,
+    InvalidInt(String),
 
     /// Invalid enum value
-    InvalidEnum,
+    InvalidEnum(String, Vec<String>),
 
     /// Invalid decimal value
-    InvalidDecimal,
+    InvalidDecimal(String),
 
     /// Invalid date value
-    InvalidDate,
+    InvalidDate(String),
 
     /// Invalid datetime value
-    InvalidDateTime,
+    InvalidDateTime(String),
 
     /// Invalid time value
-    InvalidTime,
+    InvalidTime(String),
 
     // FIXME: Add OutOfRange and other errors
 }
 
 impl fmt::Display for ValueError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.description())
+        match *self {
+            ValueError::InvalidBool(ref s) => write!(f, "could not parse `{}` as BOOL", s),
+            ValueError::InvalidInt(ref s) => write!(f, "could not parse `{}` as INTEGER", s),
+            ValueError::InvalidEnum(ref s, _) => {
+                write!(f, "could not parse `{}` as valid ENUM value", s)
+            }
+            ValueError::InvalidDecimal(ref s) => write!(f, "could not parse ` {}` as DECIMAL", s),
+            ValueError::InvalidDate(ref s) => write!(f, "could not parse `{}` as DATE", s),
+            ValueError::InvalidDateTime(ref s) => write!(f, "could not parse ` {}` as DATETIME", s),
+            ValueError::InvalidTime(ref s) => write!(f, "could not parse `{}` as TIME", s),
+            _ => write!(f, "{}", self.description()),
+        }
     }
 }
 
@@ -583,17 +596,83 @@ impl error::Error for ValueError {
     fn description(&self) -> &str {
         match *self {
             ValueError::NonNullable => "field is not nullable",
-            ValueError::InvalidBool => "invalid boolean",
-            ValueError::InvalidInt => "invalid integer",
-            ValueError::InvalidEnum => "invalid enum",
-            ValueError::InvalidDecimal => "invalid decimal",
-            ValueError::InvalidDate => "invalid date",
-            ValueError::InvalidDateTime => "invalid datetime",
-            ValueError::InvalidTime => "invalid time",
+            ValueError::InvalidBool(_) => "invalid boolean",
+            ValueError::InvalidInt(_) => "invalid integer",
+            ValueError::InvalidEnum(_, _) => "invalid enum",
+            ValueError::InvalidDecimal(_) => "invalid decimal",
+            ValueError::InvalidDate(_) => "invalid date",
+            ValueError::InvalidDateTime(_) => "invalid datetime",
+            ValueError::InvalidTime(_) => "invalid time",
         }
     }
 
     fn cause(&self) -> Option<&error::Error> {
         None
+    }
+}
+
+impl Helpful for ValueError {
+    fn help(&self) -> String {
+        match *self {
+            ValueError::InvalidBool(_) => {
+                "The value provided is not a valid BOOL. The only \
+                acceptable for a boolean field are `TRUE` and \
+                `FALSE`."
+                        .to_owned()
+            }
+            ValueError::InvalidInt(_) => {
+                "The value is not a valid integer. Integers must \
+                contain only digits and no leading zeros."
+                        .to_owned()
+            }
+            ValueError::InvalidEnum(_, ref variants) => {
+                format!("The value is not a valid value for the ENUM. Valid
+                values for this ENUM are: {}.",
+                        variants
+                            .iter()
+                            .map(|s| "`".to_owned() + s.as_ref() + "`")
+                            .collect::<Vec<_>>()
+                            .join(", "))
+            }
+            ValueError::InvalidDecimal(_) => {
+                "The value is not a valid DECIMAL. Decimal values must \
+                only contain digits and a single decimal separator, in \
+                the form of a dot `.`!"
+                        .to_owned()
+            }
+            ValueError::InvalidDate(_) => {
+                "The value is not a valid DATE. Date values must be formatted \
+                as YYYYmmDD, where YYYY is the four-digit year, mm the two \
+                digit month and DD the two-digit day. Example: The 31st of \
+                Dec 2015 would be encoded as `20151231`.\n\n\
+                Otherwise dates must be valid calendar dates."
+                        .to_owned()
+            }
+            ValueError::InvalidDateTime(_) => {
+                "The value is not a valid DATETIME. Datetime values must be
+                formatted as YYYYmmDDHHMMSS, where YYYY is the four-digit year,
+                mm the two-digit month, DD the two-digit day, HH the \
+                two-digit hour, MM the two-digit minute and SS the two-digit \
+                second.\n\n\
+                Ex: The 31st of Dec 2015, 23:01:58 would be encoded as \
+                `20151231230158`.\n\n
+                Otherwise datetimes must correspond to valid calendar dates \
+                and clock times."
+                        .to_owned()
+            }
+            ValueError::InvalidTime(_) => {
+                "The value is not a valid TIME. Time values must be
+                formatted as HHMMSS, where HH is the two-digit hour, MM the \
+                two-digit minute and SS the two-digit second.\n\n\
+                Ex: 23:01:58 would be encoded as `230158`.\n\n
+                Times must be valid clock times."
+                        .to_owned()
+            }
+            ValueError::NonNullable => {
+                "The field was not marked as `NULLABLE`, but did not contain \
+                a value."
+                        .to_owned()
+            }
+        }
     }
 }
