@@ -187,7 +187,7 @@ pub enum CheckError {
     SchemaNotAFile,
 
     /// Filename invalid according to CSVX spec
-    InvalidCsvxFilename,
+    InvalidCsvxFilename(String),
 
     /// Error loading schema
     SchemaLoadError(SchemaLoadError),
@@ -204,10 +204,17 @@ impl From<SchemaLoadError> for CheckError {
 
 impl fmt::Display for CheckError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(cause) = self.cause() {
-            write!(f, "{}", cause)
-        } else {
-            write!(f, "{}", self.description())
+        match *self {
+            CheckError::InvalidCsvxFilename(ref s) => {
+                write!(f, "`{}` is not a valid CSVX filename", s)
+            }
+            _ => {
+                if let Some(cause) = self.cause() {
+                    write!(f, "{}", cause)
+                } else {
+                    write!(f, "{}", self.description())
+                }
+            }
         }
     }
 }
@@ -217,7 +224,10 @@ impl error::Error for CheckError {
         match *self {
             CheckError::NotASchema => "not a schema",
             CheckError::SchemaNotAFile => "schema is not a file",
-            CheckError::InvalidCsvxFilename => "filename is not a valid CSVX filename",
+            CheckError::InvalidCsvxFilename(_) => {
+                "filename is not a valid CSVX
+            filename"
+            }
             CheckError::SchemaLoadError(_) => "could not load schema",
             CheckError::SchemaPathUtf8Error => "filename UTF8 decoding error",
         }
@@ -245,7 +255,7 @@ impl Helpful for CheckError {
                         .to_owned()
             }
             CheckError::SchemaNotAFile => "The schema you supplied is not a valid file".to_owned(),
-            CheckError::InvalidCsvxFilename => {
+            CheckError::InvalidCsvxFilename(_) => {
                 "The filename provided is not in a valid CSVX form. CSVX \
                 filenames have three components: The table name, date and \
                 schema name. All components must be lowercase letters, \

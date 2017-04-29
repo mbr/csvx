@@ -515,10 +515,9 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
         .to_owned();
 
     let meta =
-        parse_filename(meta_fn)
+        parse_filename(meta_fn.clone())
             .ok_or_else(|| {
-                            CheckError::InvalidCsvxFilename.at(Location::File(schema_path_s
-                                                                                  .clone()))
+                            CheckError::InvalidCsvxFilename(meta_fn).at(Location::File (schema_path_s.clone()))
                         })?;
 
     if !meta.is_schema() {
@@ -557,7 +556,7 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
 
 fn main() {
     let app = App::new("csvx")
-        .version("5.0.2")
+        .version("5.1.0")
         .about("csvx utility")
         .subcommand(SubCommand::with_name("check")
                         .about("Check csvx files for conformance")
