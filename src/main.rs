@@ -575,7 +575,7 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
 
 fn main() {
     let app = App::new("csvx")
-        .version("5.1.0")
+        .version("5.2.0")
         .about("csvx utility")
         .subcommand(SubCommand::with_name("check")
                         .about("Check csvx files for conformance")
