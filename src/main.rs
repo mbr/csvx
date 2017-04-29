@@ -495,17 +495,19 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
         .map_err(|e| e.convert())?;
 
     // schema validated correctly, reward user with a checkmark
-    println!("{} {} {}",
+    println!("{} {}",
              Color::Green.paint(Attr::Bold.paint("✓")),
-             Color::Yellow.paint("[schema]"),
              Attr::Bold.paint(schema_path_s));
 
     let mut all_good = true;
     for input_file in input_files {
-        println!("Validating {:?}", input_file.as_ref());
+        // FIXME: collect errors, instead of unwrapping, output those and
+        // continue
+        schema.validate_file(&input_file).unwrap();
+        println!("{} {}",
+                 Color::Green.paint(Attr::Bold.paint("✓")),
+                 input_file.as_ref().to_string_lossy());
 
-        // FIXME: collect errors
-        schema.validate_file(input_file).unwrap();
     }
 
     Ok(all_good)
