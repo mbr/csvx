@@ -194,6 +194,9 @@ pub enum CheckError {
 
     /// Path is not valid UTF8
     SchemaPathUtf8Error,
+
+    /// Schema in data file name does not match schema
+    SchemaMismatch { schema: String, data: String },
 }
 
 impl From<SchemaLoadError> for CheckError {
@@ -208,6 +211,10 @@ impl fmt::Display for CheckError {
             CheckError::InvalidCsvxFilename(ref s) => {
                 write!(f, "`{}` is not a valid CSVX filename", s)
             }
+            CheckError::SchemaMismatch {
+                ref schema,
+                ref data,
+            } => write!(f, "Expected schema `{}`, got `{}` instead", schema, data),
             _ => {
                 if let Some(cause) = self.cause() {
                     write!(f, "{}", cause)
@@ -230,6 +237,8 @@ impl error::Error for CheckError {
             }
             CheckError::SchemaLoadError(_) => "could not load schema",
             CheckError::SchemaPathUtf8Error => "filename UTF8 decoding error",
+            CheckError::SchemaMismatch { .. } => "schema mismatch",
+
         }
     }
 
@@ -277,6 +286,15 @@ impl Helpful for CheckError {
                         .to_owned()
             }
             CheckError::SchemaLoadError(ref e) => e.help(),
+            CheckError::SchemaMismatch { .. } => {
+                "Every file validated against a schema must have the schema's \
+                name in its table field. Example: When validating using a \
+                schema named `animals-2_20170101_csvx-schema-5.csv`, the \
+                schema name is `animals-2`. Every data file validated against \
+                this schema must end with `_animals-2.csv`; e.g. \
+                `zoo-nyc_20170401_animals-2.csv`."
+                        .to_owned()
+            }
         }
     }
 }

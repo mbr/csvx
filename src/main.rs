@@ -535,6 +535,25 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
 
     let mut all_good = true;
     for input_file in input_files {
+        // validate filename first.
+        // FIXME: should be moved into validation, as filename is validated
+        //        and this whole section is a mess!
+        let input_fn_s = input_file.as_ref().to_owned().file_name().ok_or_else
+        (||unimplemented!()).unwrap().to_string_lossy().to_string();
+        let inp_meta = parse_filename(&input_fn_s).ok_or_else(||
+            CheckError::InvalidCsvxFilename(input_fn_s.clone()).at
+            (Location::File(input_fn_s.clone())))?;
+
+        // FIXME: should not abort just because schema of one file did not
+        //        fit
+        if inp_meta.schema != meta.table_name {
+            return Err(CheckError::SchemaMismatch{
+                schema: meta.table_name.clone(),
+                data: inp_meta.schema.clone()
+            }.at(Location::File(input_file.as_ref().to_string_lossy
+                ().to_string())))
+        }
+
         match schema.validate_file(&input_file) {
             Ok(()) => println!("{} {}",
                  Color::Green.paint(Attr::Bold.paint("✓")),
