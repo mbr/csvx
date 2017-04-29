@@ -14,8 +14,8 @@ mod err;
 
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use clap::{App, Arg, SubCommand};
-use err::{CheckError, ColumnConstraintsError, ColumnTypeError, ErrorWithLocation, Location,
-          SchemaLoadError, ValidationError, ValueError};
+use err::{CheckError, ColumnConstraintsError, ColumnTypeError, ErrorLoc, ErrorAtLocation,
+          Location, ResultLoc, SchemaLoadError, ValidationError, ValueError};
 use std::{io, path, process};
 use regex::Regex;
 use safe_unwrap::SafeUnwrap;
@@ -292,8 +292,15 @@ struct CsvxSchema {
 }
 
 impl CsvxSchema {
-    fn from_file<P: AsRef<path::Path>>(filename: P) -> Result<CsvxSchema, SchemaLoadError> {
-        let mut rdr = csv::Reader::from_file(filename)?.has_headers(false);
+    fn from_file<P: AsRef<path::Path>>(filename: P)
+                                       -> Result<CsvxSchema, ErrorAtLocation<SchemaLoadError>> {
+
+        // have a copy of the filename as a string ready for error locations
+        let filename_s = filename.as_ref().to_string_lossy().to_string();
+
+        let mut rdr = csv::Reader::from_file(filename)
+            .err_at(|| Location::File(filename_s.clone()))?
+            .has_headers(false);
 
         let mut it = rdr.decode();
         let header: Option<Result<(String, String, String, String), _>> = it.next();
@@ -301,35 +308,46 @@ impl CsvxSchema {
         let mut columns = Vec::new();
 
         match header {
-            None => return Err(SchemaLoadError::MissingHeader),
+            None => {
+                return Err(SchemaLoadError::MissingHeader.at(Location::FileLine(filename_s, 1)))
+            }
             Some(res) => {
-                let fields = res?;
-
+                let fields = res.err_at(|| Location::File(filename_s.clone()))?;
                 if fields.0 != "id" || fields.1 != "type" || fields.2 != "constraints" ||
                    fields.3 != "description" {
 
-                    return Err(SchemaLoadError::BadHeader);
+                    return Err(SchemaLoadError::BadHeader.at(Location::FileLine(filename_s, 1)));
                 }
 
                 for (recno, rec) in it.enumerate() {
-                    let (id, ty, constraints, desc) = rec?;
+                    let (id, ty, constraints, desc) =
+                        rec.err_at(|| Location::FileLine(filename_s.clone(), 1))?;
                     let lineno = recno + 2;
 
                     // check identifier
                     if !IDENT_UNDERSCORE_RE.is_match(&id.as_str()) {
-                        return Err(SchemaLoadError::BadIdentifier(lineno, id));
+                        return Err(SchemaLoadError::BadIdentifier(lineno, id)
+                                       .at(Location::FileRowField(filename_s, recno, 1)));
                     }
 
                     // create type
                     let col_type = match ColumnType::try_from(ty.as_str()) {
                         Ok(v) => v,
-                        Err(e) => return Err(SchemaLoadError::BadType(lineno, e)),
+                        // FIXME: location
+                        Err(e) => {
+                            return Err(SchemaLoadError::BadType(lineno, e)
+                                           .at(Location::Unspecified))
+                        }
                     };
 
                     // create constraints
                     let col_constraints = match ColumnConstraints::try_from(constraints.as_str()) {
                         Ok(v) => v,
-                        Err(e) => return Err(SchemaLoadError::BadConstraints(lineno, e)),
+                        // FIXME: location
+                        Err(e) => {
+                            return Err(SchemaLoadError::BadConstraints(lineno, e)
+                                           .at(Location::Unspecified))
+                        }
                     };
 
                     let col = CsvxColumnType {
@@ -436,13 +454,13 @@ fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
 fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
     (schema_path: P,
      input_files: Vec<Q>)
-     -> Result<bool, ErrorWithLocation<CheckError>> {
+     -> Result<bool, ErrorAtLocation<CheckError>> {
 
     // ensure schema_path evaluates to a real utf8 path
     let schema_path_s = schema_path
         .as_ref()
         .to_str()
-        .ok_or_else(|| ErrorWithLocation::from_error(CheckError::SchemaPathUtf8Error))?
+        .ok_or_else(|| CheckError::SchemaPathUtf8Error.at(Location::Unspecified))?
         .to_owned();
 
     // get filename portion
@@ -450,28 +468,26 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
         .as_ref()
         .to_owned()
         .file_name()
-        .ok_or_else(|| {
-                        ErrorWithLocation::new(Location::File(schema_path_s.clone()),
-                                               CheckError::SchemaNotAFile)
-                    })?
+        .ok_or_else(|| CheckError::SchemaNotAFile.at(Location::File(schema_path_s.clone())))?
         .to_str()
         .safe_unwrap("already verified UTF8")
         .to_owned();
 
-    let meta = parse_filename(meta_fn)
-        .ok_or_else(|| {
-                        ErrorWithLocation::new(Location::File(schema_path_s.clone()),
-                                               CheckError::InvalidCsvxFilename)
-                    })?;
+    let meta =
+        parse_filename(meta_fn)
+            .ok_or_else(|| {
+                            CheckError::InvalidCsvxFilename.at(Location::File(schema_path_s
+                                                                                  .clone()))
+                        })?;
 
     if !meta.is_schema() {
-        return Err(ErrorWithLocation::new(Location::File(schema_path_s), CheckError::NotASchema));
+        return Err(CheckError::NotASchema.at(Location::File(schema_path_s.clone())));
     }
 
     // load schema
     let schema = CsvxSchema::from_file(schema_path)
         // FIXME: properly report error
-        .map_err(|e| ErrorWithLocation::from_error(e))?;
+        .map_err(|e| e.convert())?;
 
     let mut all_good = true;
     for input_file in input_files {
