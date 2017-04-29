@@ -501,13 +501,18 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
 
     let mut all_good = true;
     for input_file in input_files {
-        // FIXME: collect errors, instead of unwrapping, output those and
-        // continue
-        schema.validate_file(&input_file).unwrap();
-        println!("{} {}",
+        match schema.validate_file(&input_file) {
+            Ok(()) => println!("{} {}",
                  Color::Green.paint(Attr::Bold.paint("✓")),
-                 input_file.as_ref().to_string_lossy());
-
+                 input_file.as_ref().to_string_lossy()),
+            Err(e) => {
+                all_good = false;
+                println!("{} {}",
+                         Color::Red.paint(Attr::Bold.paint("✗")),
+                         input_file.as_ref().to_string_lossy());
+                println!("ERRORS GO HERE");
+            }
+        }
     }
 
     Ok(all_good)
