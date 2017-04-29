@@ -19,6 +19,7 @@ use err::{CheckError, ColumnConstraintsError, ColumnTypeError, ErrorLoc, ErrorAt
 use std::{io, path, process};
 use regex::Regex;
 use safe_unwrap::SafeUnwrap;
+use term_painter::{Attr, Color, ToStyle};
 use try_from::TryFrom;
 
 lazy_static! {
@@ -491,8 +492,13 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
 
     // load schema
     let schema = CsvxSchema::from_file(schema_path)
-        // FIXME: properly report error
         .map_err(|e| e.convert())?;
+
+    // schema validated correctly, reward user with a checkmark
+    println!("{} {} {}",
+             Color::Green.paint(Attr::Bold.paint("✓")),
+             Color::Yellow.paint("[schema]"),
+             Attr::Bold.paint(schema_path_s));
 
     let mut all_good = true;
     for input_file in input_files {
