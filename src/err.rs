@@ -5,16 +5,31 @@ use term_painter::{Attr, Color, ToStyle};
 use term_size;
 use textwrap;
 
+/// Types with Long-help available
 pub trait Helpful {
+    /// Return a long help message about the error
     fn help(&self) -> String;
 }
 
+/// A location in input data
 #[derive(Clone, Debug)]
 pub enum Location {
-    FileLineColumn(String, usize, usize),
-    FileRowField(String, usize, usize),
+    // /// File, Line, Colum
+    // ///
+    // /// Note that Column refers to character columns
+    // FileLineColumn(String, usize, usize),
+    /// File, Row, Field
+    ///
+    /// Fields are CSV columns (compare `FileLineColumn`)
+    FileLineField(String, usize, usize),
+
+    /// File, Line
     FileLine(String, usize),
+
+    /// File
     File(String),
+
+    /// Unspecified location
     Unspecified,
 }
 
@@ -27,9 +42,10 @@ impl Default for Location {
 impl fmt::Display for Location {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Location::FileLineColumn(ref file, line, col) => write!(f, "{}:{}:{}", file, line, col),
-            Location::FileRowField(ref file, row, field) => {
-                write!(f, "{}:{}[{}]", file, row, field)
+            // Location::FileLineColumn(ref file, line, col) =>
+            // write!(f, "{}:{}:{}", file, line, col),
+            Location::FileLineField(ref file, row, field) => {
+                write!(f, "{}:{}[field {}]", file, row, field)
             }
             Location::FileLine(ref file, line) => write!(f, "{}:{}]", file, line),
             Location::File(ref file) => write!(f, "{}", file),
@@ -93,6 +109,7 @@ impl<E, L: Default> ErrorAtLocation<E, L> {
     }
 }
 
+/// Supports printing out help
 pub trait HelpPrinter {
     fn print_help(&self);
 }
@@ -124,9 +141,9 @@ impl<E, L> ErrorAtLocation<E, L> {
         &self.error
     }
 
-    pub fn into_error(self) -> E {
-        self.error
-    }
+    // pub fn into_error(self) -> E {
+    //     self.error
+    // }
 
     pub fn location(&self) -> &L {
         &self.location
@@ -157,12 +174,25 @@ impl<E, L: Default> From<E> for ErrorAtLocation<E, L> {
     }
 }
 
+/// Top-level check error
+///
+/// Encapsulates all fatal errors that can occur when checking files against
+/// a schema
 #[derive(Debug)]
 pub enum CheckError {
+    /// Filename does not indicate schema
     NotASchema,
+
+    /// Cannot open because not a file
     SchemaNotAFile,
+
+    /// Filename invalid according to CSVX spec
     InvalidCsvxFilename,
+
+    /// Error loading schema
     SchemaLoadError(SchemaLoadError),
+
+    /// Path is not valid UTF8
     SchemaPathUtf8Error,
 }
 
@@ -173,6 +203,7 @@ impl From<SchemaLoadError> for CheckError {
 }
 
 impl fmt::Display for CheckError {
+    /// FIXME:
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(cause) = self.cause() {
             write!(f, "{}", cause)
@@ -243,39 +274,28 @@ impl Helpful for CheckError {
 
 #[derive(Clone, Debug)]
 pub enum ColumnConstraintsError {
-    MalformedConstraint,
+    MalformedConstraints(String),
     UnknownConstraint(String),
 }
 
-#[derive(Clone, Debug)]
-pub enum ColumnTypeError {
-    UnknownType,
-}
-
-#[derive(Debug)]
-pub enum SchemaLoadError {
-    Csv(csv::Error),
-    MissingHeader,
-    BadHeader,
-    BadIdentifier(usize, String),
-    BadType(usize, ColumnTypeError),
-    BadConstraints(usize, ColumnConstraintsError),
-}
-
-impl fmt::Display for SchemaLoadError {
+impl fmt::Display for ColumnConstraintsError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(cause) = self.cause() {
-            write!(f, "{}", cause)
-        } else {
-            write!(f, "{}", self.description())
+        match *self {
+            ColumnConstraintsError::MalformedConstraints(ref s) => {
+                write!(f, "malformed constraints: `{}`", s)
+            }
+            ColumnConstraintsError::UnknownConstraint(ref s) => {
+                write!(f, "unknown constraint: `{}`", s)
+            }
         }
     }
 }
 
-impl error::Error for SchemaLoadError {
+impl error::Error for ColumnConstraintsError {
     fn description(&self) -> &str {
         match *self {
-            _ => "TBW",
+            ColumnConstraintsError::MalformedConstraints(_) => "malformed constraints",
+            ColumnConstraintsError::UnknownConstraint(_) => "unknown constraint",
         }
     }
 
@@ -286,9 +306,164 @@ impl error::Error for SchemaLoadError {
     }
 }
 
+impl Helpful for ColumnConstraintsError {
+    fn help(&self) -> String {
+        match *self {
+            ColumnConstraintsError::MalformedConstraints(_) => {
+                "The constraints could be not recognized. Constraints must be \
+                all uppercase letters, comma-separated, with no spaces in \
+                between."
+                        .to_owned()
+            }
+            ColumnConstraintsError::UnknownConstraint(_) => {
+                "The constraint is not known to be a valid constraint. Valid \
+                constraints are `NULLABLE` and `UNIQUE`."
+                        .to_owned()
+            }
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum ColumnTypeError {
+    /// Unknown column type
+    UnknownType(String),
+
+    /// Type is intended to be an `ENUM`, but invalid
+    BadEnum(String),
+}
+
+impl fmt::Display for ColumnTypeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ColumnTypeError::UnknownType(ref s) => write!(f, "unknown column type `{}`", s),
+            ColumnTypeError::BadEnum(ref s) => write!(f, "bad enum `{}`", s),
+        }
+    }
+}
+
+impl error::Error for ColumnTypeError {
+    fn description(&self) -> &str {
+        match *self {
+            ColumnTypeError::UnknownType(_) => "unknown column type",
+            ColumnTypeError::BadEnum(_) => "bad enum",
+        }
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        None
+    }
+}
+
+impl Helpful for ColumnTypeError {
+    fn help(&self) -> String {
+        match *self {
+            ColumnTypeError::UnknownType(_) => {
+                "The column type specified is not known. Valid types are \
+                `STRING`, `BOOL`, `INTEGER`, `ENUM(...)`, `DECIMAL`, \
+                `DATE`, `DATETIME` and `TIME`"
+                        .to_owned()
+            }
+            ColumnTypeError::BadEnum(_) => {
+                "The `ENUM` specified is not valid. Enums must be of the form \
+                `ENUM(V1,V2,V3,` ... `)`. Note that variants must be of \
+                uppercase letters and numbers only, separated by commas, \
+                with no spaces allowed in between"
+                        .to_owned()
+            }
+        }
+    }
+}
+
+/// Schema loading error
+#[derive(Debug)]
+pub enum SchemaLoadError {
+    /// Generic CSV parsing error
+    Csv(csv::Error),
+
+    /// No header present (because file is empty)
+    MissingHeader,
+
+    /// Header columns incorrect
+    BadHeader,
+
+    /// The identifier is invalid
+    BadIdentifier(String),
+
+    /// Bad column type
+    BadType(ColumnTypeError),
+
+    /// Bad constraints
+    BadConstraints(ColumnConstraintsError),
+}
+
+impl fmt::Display for SchemaLoadError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            SchemaLoadError::BadIdentifier(ref ident) => write!(f, "bad identifier `{}`", ident),
+            _ => {
+                if let Some(cause) = self.cause() {
+                    write!(f, "{}", cause)
+                } else {
+                    write!(f, "{}", self.description())
+                }
+            }
+        }
+
+    }
+}
+
+impl error::Error for SchemaLoadError {
+    fn description(&self) -> &str {
+        match *self {
+            SchemaLoadError::Csv(_) => "invalid CSV",
+            SchemaLoadError::MissingHeader => "missing header",
+            SchemaLoadError::BadHeader => "header is invalid",
+            SchemaLoadError::BadIdentifier(_) => "bad identifier",
+            SchemaLoadError::BadType(_) => "bad type",
+            SchemaLoadError::BadConstraints(_) => "invalid constraints",
+        }
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        match *self {
+            SchemaLoadError::Csv(ref e) => Some(e),
+            SchemaLoadError::BadType(ref e) => Some(e),
+            SchemaLoadError::BadConstraints(ref e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
 impl Helpful for SchemaLoadError {
     fn help(&self) -> String {
-        "FIXME".to_owned()
+        match *self {
+            SchemaLoadError::Csv(_) => {
+                "The CSV file could not be loaded. Please ensure that the \
+                file exists and is a valid CSV file according to the \
+                CSVX specification as well as RFC4180.\n\n\
+                The most common errors in CSV files are wrong field \
+                separators (only commas are valid separators) or invalid \
+                decimal separators (decimal point must be dots `.`, not \
+                commas or other locale specific characters."
+                        .to_owned()
+            }
+            SchemaLoadError::MissingHeader => "The CSV file has no header; it's empty.".to_owned(),
+            SchemaLoadError::BadHeader => {
+                "The CSV file has an invalid header. A valid header for \
+                a schema file contains exactly four fields and looks like \
+                this: \n\n\
+                id,type,constraints,description"
+                        .to_owned()
+            }
+            SchemaLoadError::BadIdentifier(_) => {
+                "A valid identifier must start with a lowercase letter and \
+                contain only lowercase letters, numbers or underscores."
+                        .to_owned()
+            }
+            SchemaLoadError::BadType(ref e) => e.help(),
+            SchemaLoadError::BadConstraints(ref e) => e.help(),
+        }
     }
 }
 

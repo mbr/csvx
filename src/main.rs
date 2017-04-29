@@ -35,7 +35,7 @@ lazy_static! {
 
 lazy_static! {
     static ref CONSTRAINT_RE: Regex = Regex::new(
-        r"^(:?(?:NULLABLE|UNIQUE),?)*$"
+        r"^(:?[A-Z]+,?)*$"
     ).safe_unwrap("built-in Regex is broken. Please file a bug");
 }
 
@@ -123,7 +123,7 @@ impl<S> TryFrom<S> for ColumnConstraints
 
     fn try_from(s: S) -> Result<ColumnConstraints, Self::Err> {
         if !CONSTRAINT_RE.is_match(s.as_ref()) {
-            return Err(ColumnConstraintsError::MalformedConstraint);
+            return Err(ColumnConstraintsError::MalformedConstraints(s.as_ref().to_string()));
         }
 
         let mut ccs = ColumnConstraints::default();
@@ -176,7 +176,12 @@ impl<S> TryFrom<S> for ColumnType
 
                 Ok(ColumnType::Enum(variants))
             }
-            _ => return Err(ColumnTypeError::UnknownType),
+            _ => {
+                if s.as_ref().starts_with("ENUM") {
+                    return Err(ColumnTypeError::BadEnum(s.as_ref().to_owned()));
+                }
+                return Err(ColumnTypeError::UnknownType(s.as_ref().to_owned()));
+            }
 
         }
     }
@@ -327,17 +332,16 @@ impl CsvxSchema {
 
                     // check identifier
                     if !IDENT_UNDERSCORE_RE.is_match(&id.as_str()) {
-                        return Err(SchemaLoadError::BadIdentifier(lineno, id)
-                                       .at(Location::FileRowField(filename_s, recno, 1)));
+                        return Err(SchemaLoadError::BadIdentifier(id)
+                                       .at(Location::FileLineField(filename_s, lineno, 1)));
                     }
 
                     // create type
                     let col_type = match ColumnType::try_from(ty.as_str()) {
                         Ok(v) => v,
-                        // FIXME: location
                         Err(e) => {
-                            return Err(SchemaLoadError::BadType(lineno, e)
-                                           .at(Location::Unspecified))
+                            return Err(SchemaLoadError::BadType(e)
+                                           .at(Location::FileLineField(filename_s, lineno, 1)))
                         }
                     };
 
@@ -346,8 +350,8 @@ impl CsvxSchema {
                         Ok(v) => v,
                         // FIXME: location
                         Err(e) => {
-                            return Err(SchemaLoadError::BadConstraints(lineno, e)
-                                           .at(Location::Unspecified))
+                            return Err(SchemaLoadError::BadConstraints(e)
+                                           .at(Location::FileLine(filename_s, lineno)))
                         }
                     };
 
