@@ -50,9 +50,14 @@ impl<E: error::Error, F: Into<E>> ErrorLoc<E> for F {
     }
 }
 
-pub trait ResultLoc<V, E: ErrorLoc<E>> {
+pub trait ResultLoc<V, E: ErrorLoc<E>>: Sized {
     #[inline]
     fn err_location(self, location: Location) -> Result<V, ErrorWithLocation<E>>;
+
+    #[inline]
+    fn err_loc<F: FnOnce() -> Location>(self, floc: F) -> Result<V, ErrorWithLocation<E>> {
+        self.err_location(floc())
+    }
 }
 
 impl<V, E: error::Error, F: Into<E>> ResultLoc<V, E> for Result<V, F> {
