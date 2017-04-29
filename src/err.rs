@@ -33,61 +33,61 @@ impl fmt::Display for Location {
 }
 
 #[derive(Debug)]
-pub struct ErrorWithLocation<E> {
+pub struct ErrorAtLocation<E> {
     location: Location,
     error: E,
 }
 
 pub trait ErrorLoc<E>: Sized {
     #[inline]
-    fn at(self, location: Location) -> ErrorWithLocation<E>;
+    fn at(self, location: Location) -> ErrorAtLocation<E>;
 }
 
 impl<E: error::Error, F: Into<E>> ErrorLoc<E> for F {
     #[inline]
-    fn at(self, location: Location) -> ErrorWithLocation<E> {
-        ErrorWithLocation::new(location, self.into())
+    fn at(self, location: Location) -> ErrorAtLocation<E> {
+        ErrorAtLocation::new(location, self.into())
     }
 }
 
 pub trait ResultLoc<V, E: ErrorLoc<E>>: Sized {
     #[inline]
-    fn error_at(self, location: Location) -> Result<V, ErrorWithLocation<E>>;
+    fn error_at(self, location: Location) -> Result<V, ErrorAtLocation<E>>;
 
     #[inline]
-    fn err_at<F: FnOnce() -> Location>(self, floc: F) -> Result<V, ErrorWithLocation<E>> {
+    fn err_at<F: FnOnce() -> Location>(self, floc: F) -> Result<V, ErrorAtLocation<E>> {
         self.error_at(floc())
     }
 }
 
 impl<V, E: error::Error, F: Into<E>> ResultLoc<V, E> for Result<V, F> {
     #[inline]
-    fn error_at(self, location: Location) -> Result<V, ErrorWithLocation<E>> {
+    fn error_at(self, location: Location) -> Result<V, ErrorAtLocation<E>> {
         self.map_err(|f| f.at(location))
     }
 }
 
-impl<E> ErrorWithLocation<E> {
-    pub fn new<F: Into<E>>(location: Location, error: F) -> ErrorWithLocation<E> {
-        ErrorWithLocation {
+impl<E> ErrorAtLocation<E> {
+    pub fn new<F: Into<E>>(location: Location, error: F) -> ErrorAtLocation<E> {
+        ErrorAtLocation {
             location: location,
             error: error.into(),
         }
     }
 
-    pub fn from_error<F: Into<E>>(other: F) -> ErrorWithLocation<E> {
-        ErrorWithLocation::new(Location::Unspecified, other.into())
+    pub fn from_error<F: Into<E>>(other: F) -> ErrorAtLocation<E> {
+        ErrorAtLocation::new(Location::Unspecified, other.into())
     }
 
-    pub fn convert<F: From<E>>(self) -> ErrorWithLocation<F> {
-        ErrorWithLocation {
+    pub fn convert<F: From<E>>(self) -> ErrorAtLocation<F> {
+        ErrorAtLocation {
             location: self.location,
             error: self.error.into(),
         }
     }
 }
 
-impl<E: fmt::Display + Helpful> ErrorWithLocation<E> {
+impl<E: fmt::Display + Helpful> ErrorAtLocation<E> {
     pub fn print_help(&self) {
         println!("{}{} {}",
                  Attr::Bold.paint((Color::Red.paint("error"))),
@@ -109,7 +109,7 @@ impl<E: fmt::Display + Helpful> ErrorWithLocation<E> {
     }
 }
 
-impl<E> ErrorWithLocation<E> {
+impl<E> ErrorAtLocation<E> {
     pub fn error(&self) -> &E {
         &self.error
     }
@@ -123,7 +123,7 @@ impl<E> ErrorWithLocation<E> {
     }
 }
 
-impl<E: fmt::Display> fmt::Display for ErrorWithLocation<E> {
+impl<E: fmt::Display> fmt::Display for ErrorAtLocation<E> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self.location() {
             Location::Unspecified => write!(f, "{}", self.error()),
@@ -132,7 +132,7 @@ impl<E: fmt::Display> fmt::Display for ErrorWithLocation<E> {
     }
 }
 
-impl<E: error::Error> error::Error for ErrorWithLocation<E> {
+impl<E: error::Error> error::Error for ErrorAtLocation<E> {
     fn description(&self) -> &str {
         self.error.description()
     }
@@ -142,9 +142,9 @@ impl<E: error::Error> error::Error for ErrorWithLocation<E> {
     }
 }
 
-impl<E> From<E> for ErrorWithLocation<E> {
-    fn from(e: E) -> ErrorWithLocation<E> {
-        ErrorWithLocation::from_error(e)
+impl<E> From<E> for ErrorAtLocation<E> {
+    fn from(e: E) -> ErrorAtLocation<E> {
+        ErrorAtLocation::from_error(e)
     }
 }
 
