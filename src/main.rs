@@ -15,7 +15,7 @@ mod err;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use clap::{App, Arg, SubCommand};
 use err::{CheckError, ColumnConstraintsError, ColumnTypeError, ErrorLoc, ErrorAtLocation,
-          Location, ResultLoc, SchemaLoadError, ValidationError, ValueError};
+          HelpPrinter, Location, ResultLoc, SchemaLoadError, ValidationError, ValueError};
 use std::{io, path, process};
 use regex::Regex;
 use safe_unwrap::SafeUnwrap;
@@ -292,8 +292,9 @@ struct CsvxSchema {
 }
 
 impl CsvxSchema {
-    fn from_file<P: AsRef<path::Path>>(filename: P)
-                                       -> Result<CsvxSchema, ErrorAtLocation<SchemaLoadError>> {
+    fn from_file<P: AsRef<path::Path>>
+        (filename: P)
+         -> Result<CsvxSchema, ErrorAtLocation<SchemaLoadError, Location>> {
 
         // have a copy of the filename as a string ready for error locations
         let filename_s = filename.as_ref().to_string_lossy().to_string();
@@ -454,7 +455,7 @@ fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
 fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
     (schema_path: P,
      input_files: Vec<Q>)
-     -> Result<bool, ErrorAtLocation<CheckError>> {
+     -> Result<bool, ErrorAtLocation<CheckError, Location>> {
 
     // ensure schema_path evaluates to a real utf8 path
     let schema_path_s = schema_path

@@ -18,6 +18,12 @@ pub enum Location {
     Unspecified,
 }
 
+impl Default for Location {
+    fn default() -> Location {
+        Location::Unspecified
+    }
+}
+
 impl fmt::Display for Location {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
@@ -33,53 +39,53 @@ impl fmt::Display for Location {
 }
 
 #[derive(Debug)]
-pub struct ErrorAtLocation<E> {
-    location: Location,
+pub struct ErrorAtLocation<E, L> {
+    location: L,
     error: E,
 }
 
-pub trait ErrorLoc<E>: Sized {
+pub trait ErrorLoc<E, L>: Sized {
     #[inline]
-    fn at(self, location: Location) -> ErrorAtLocation<E>;
+    fn at(self, location: L) -> ErrorAtLocation<E, L>;
 }
 
-impl<E: error::Error, F: Into<E>> ErrorLoc<E> for F {
+impl<E: error::Error, F: Into<E>, L: Default> ErrorLoc<E, L> for F {
     #[inline]
-    fn at(self, location: Location) -> ErrorAtLocation<E> {
+    fn at(self, location: L) -> ErrorAtLocation<E, L> {
         ErrorAtLocation::new(location, self.into())
     }
 }
 
-pub trait ResultLoc<V, E: ErrorLoc<E>>: Sized {
+pub trait ResultLoc<V, E: ErrorLoc<E, L>, L>: Sized {
     #[inline]
-    fn error_at(self, location: Location) -> Result<V, ErrorAtLocation<E>>;
+    fn error_at(self, location: L) -> Result<V, ErrorAtLocation<E, L>>;
 
     #[inline]
-    fn err_at<F: FnOnce() -> Location>(self, floc: F) -> Result<V, ErrorAtLocation<E>> {
+    fn err_at<F: FnOnce() -> L>(self, floc: F) -> Result<V, ErrorAtLocation<E, L>> {
         self.error_at(floc())
     }
 }
 
-impl<V, E: error::Error, F: Into<E>> ResultLoc<V, E> for Result<V, F> {
+impl<V, E: error::Error, F: Into<E>, L: Default> ResultLoc<V, E, L> for Result<V, F> {
     #[inline]
-    fn error_at(self, location: Location) -> Result<V, ErrorAtLocation<E>> {
+    fn error_at(self, location: L) -> Result<V, ErrorAtLocation<E, L>> {
         self.map_err(|f| f.at(location))
     }
 }
 
-impl<E> ErrorAtLocation<E> {
-    pub fn new<F: Into<E>>(location: Location, error: F) -> ErrorAtLocation<E> {
+impl<E, L: Default> ErrorAtLocation<E, L> {
+    pub fn new<F: Into<E>>(location: L, error: F) -> ErrorAtLocation<E, L> {
         ErrorAtLocation {
             location: location,
             error: error.into(),
         }
     }
 
-    pub fn from_error<F: Into<E>>(other: F) -> ErrorAtLocation<E> {
-        ErrorAtLocation::new(Location::Unspecified, other.into())
+    pub fn from_error<F: Into<E>>(other: F) -> ErrorAtLocation<E, L> {
+        ErrorAtLocation::new(L::default(), other.into())
     }
 
-    pub fn convert<F: From<E>>(self) -> ErrorAtLocation<F> {
+    pub fn convert<F: From<E>>(self) -> ErrorAtLocation<F, L> {
         ErrorAtLocation {
             location: self.location,
             error: self.error.into(),
@@ -87,8 +93,12 @@ impl<E> ErrorAtLocation<E> {
     }
 }
 
-impl<E: fmt::Display + Helpful> ErrorAtLocation<E> {
-    pub fn print_help(&self) {
+pub trait HelpPrinter {
+    fn print_help(&self);
+}
+
+impl<E: fmt::Display + Helpful> HelpPrinter for ErrorAtLocation<E, Location> {
+    fn print_help(&self) {
         println!("{}{} {}",
                  Attr::Bold.paint((Color::Red.paint("error"))),
                  Attr::Bold.paint(":"),
@@ -109,7 +119,7 @@ impl<E: fmt::Display + Helpful> ErrorAtLocation<E> {
     }
 }
 
-impl<E> ErrorAtLocation<E> {
+impl<E, L> ErrorAtLocation<E, L> {
     pub fn error(&self) -> &E {
         &self.error
     }
@@ -118,21 +128,20 @@ impl<E> ErrorAtLocation<E> {
         self.error
     }
 
-    pub fn location(&self) -> &Location {
+    pub fn location(&self) -> &L {
         &self.location
     }
 }
 
-impl<E: fmt::Display> fmt::Display for ErrorAtLocation<E> {
+impl<E: fmt::Display, L: fmt::Display> fmt::Display for ErrorAtLocation<E, L> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self.location() {
-            Location::Unspecified => write!(f, "{}", self.error()),
             _ => write!(f, "{}: {}", self.location(), self.error()),
         }
     }
 }
 
-impl<E: error::Error> error::Error for ErrorAtLocation<E> {
+impl<E: error::Error, L: fmt::Debug + fmt::Display> error::Error for ErrorAtLocation<E, L> {
     fn description(&self) -> &str {
         self.error.description()
     }
@@ -142,8 +151,8 @@ impl<E: error::Error> error::Error for ErrorAtLocation<E> {
     }
 }
 
-impl<E> From<E> for ErrorAtLocation<E> {
-    fn from(e: E) -> ErrorAtLocation<E> {
+impl<E, L: Default> From<E> for ErrorAtLocation<E, L> {
+    fn from(e: E) -> ErrorAtLocation<E, L> {
         ErrorAtLocation::from_error(e)
     }
 }
