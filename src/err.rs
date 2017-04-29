@@ -1,5 +1,94 @@
 use csv;
+use std::{error, fmt};
+use std::error::Error;
 use term_painter::{Color, ToStyle};
+
+#[derive(Clone, Debug)]
+pub enum Location {
+    FileLineColumn(String, usize, usize),
+    FileRowField(String, usize, usize),
+    FileLine(String, usize),
+    File(String),
+    Unspecified,
+}
+
+impl fmt::Display for Location {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Location::FileLineColumn(ref file, line, col) => write!(f, "{}:{}:{}", file, line, col),
+            Location::FileRowField(ref file, row, field) => {
+                write!(f, "{}:{}[{}]", file, row, field)
+            }
+            Location::FileLine(ref file, line) => write!(f, "{}:{}]", file, line),
+            Location::File(ref file) => write!(f, "{}", file),
+            Location::Unspecified => Ok(()),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ErrorWithLocation<E> {
+    location: Location,
+    error: E,
+}
+
+impl<E> ErrorWithLocation<E> {
+    pub fn new<F: Into<E>>(location: Location, error: F) -> ErrorWithLocation<E> {
+        ErrorWithLocation {
+            location: location,
+            error: error.into(),
+        }
+    }
+
+    pub fn from_error<F: Into<E>>(other: F) -> ErrorWithLocation<E> {
+        ErrorWithLocation::new(Location::Unspecified, other.into())
+    }
+}
+
+impl<E: fmt::Display> ErrorWithLocation<E> {
+    pub fn print_help(&self) {
+        println!("{}: {}", Color::Red.paint("Error"), self);
+    }
+}
+
+impl<E> ErrorWithLocation<E> {
+    pub fn error(&self) -> &E {
+        &self.error
+    }
+
+    pub fn into_error(self) -> E {
+        self.error
+    }
+
+    pub fn location(&self) -> &Location {
+        &self.location
+    }
+}
+
+impl<E: fmt::Display> fmt::Display for ErrorWithLocation<E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self.location() {
+            Location::Unspecified => write!(f, "{}", self.error()),
+            _ => write!(f, "{}: {}", self.location(), self.error()),
+        }
+    }
+}
+
+impl<E: error::Error> error::Error for ErrorWithLocation<E> {
+    fn description(&self) -> &str {
+        self.error.description()
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        Some(self.error())
+    }
+}
+
+impl<E> From<E> for ErrorWithLocation<E> {
+    fn from(e: E) -> ErrorWithLocation<E> {
+        ErrorWithLocation::from_error(e)
+    }
+}
 
 #[derive(Debug)]
 pub enum CheckError {
@@ -10,16 +99,33 @@ pub enum CheckError {
     SchemaPathUtf8Error,
 }
 
-impl CheckError {
-    pub fn print_help(&self) {
-
-        println!("{}: {:?}", Color::Red.paint("Error"), self);
-    }
-}
-
 impl From<SchemaLoadError> for CheckError {
     fn from(e: SchemaLoadError) -> CheckError {
         CheckError::SchemaLoadError(e)
+    }
+}
+
+impl fmt::Display for CheckError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(cause) = self.cause() {
+            write!(f, "{}", cause)
+        } else {
+            write!(f, "{}", self.description())
+        }
+    }
+}
+
+impl error::Error for CheckError {
+    fn description(&self) -> &str {
+        match *self {
+            _ => "FIXME",
+        }
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        match *self {
+            _ => None,
+        }
     }
 }
 
