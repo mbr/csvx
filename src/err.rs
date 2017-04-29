@@ -112,7 +112,8 @@ impl<E> From<E> for ErrorWithLocation<E> {
 #[derive(Debug)]
 pub enum CheckError {
     NotASchema,
-    InvalidSchemaFilename,
+    SchemaNotAFile,
+    InvalidCsvxFilename,
     SchemaLoadError(SchemaLoadError),
     SchemaPathInvalid,
     SchemaPathUtf8Error,

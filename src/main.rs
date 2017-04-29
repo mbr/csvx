@@ -14,8 +14,8 @@ mod err;
 
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use clap::{App, Arg, SubCommand};
-use err::{CheckError, ColumnConstraintsError, ColumnTypeError, ErrorWithLocation, SchemaLoadError,
-          ValidationError, ValueError};
+use err::{CheckError, ColumnConstraintsError, ColumnTypeError, ErrorWithLocation, Location,
+          SchemaLoadError, ValidationError, ValueError};
 use std::{io, path, process};
 use regex::Regex;
 use safe_unwrap::SafeUnwrap;
@@ -437,25 +437,40 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
     (schema_path: P,
      input_files: Vec<Q>)
      -> Result<bool, ErrorWithLocation<CheckError>> {
+
+    // ensure schema_path evaluates to a real utf8 path
+    let schema_path_s = schema_path
+        .as_ref()
+        .to_str()
+        .ok_or_else(|| ErrorWithLocation::from_error(CheckError::SchemaPathUtf8Error))?
+        .to_owned();
+
+    // get filename portion
     let meta_fn = schema_path
         .as_ref()
         .to_owned()
         .file_name()
-        .ok_or(CheckError::NotASchema)?
+        .ok_or_else(|| {
+                        ErrorWithLocation::new(Location::File(schema_path_s.clone()),
+                                               CheckError::SchemaNotAFile)
+                    })?
         .to_str()
-        .ok_or(CheckError::SchemaPathUtf8Error)?
+        .safe_unwrap("already verified UTF8")
         .to_owned();
 
-    // FIXME: expect
     let meta = parse_filename(meta_fn)
-        .ok_or(CheckError::InvalidSchemaFilename)?;
+        .ok_or_else(|| {
+                        ErrorWithLocation::new(Location::File(schema_path_s.clone()),
+                                               CheckError::InvalidCsvxFilename)
+                    })?;
 
     if !meta.is_schema() {
-        return Err(CheckError::NotASchema.into());
+        return Err(ErrorWithLocation::new(Location::File(schema_path_s), CheckError::NotASchema));
     }
 
     // load schema
     let schema = CsvxSchema::from_file(schema_path)
+        // FIXME: properly report error
         .map_err(|e| ErrorWithLocation::from_error(e))?;
 
     let mut all_good = true;
