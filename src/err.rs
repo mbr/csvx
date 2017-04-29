@@ -49,6 +49,13 @@ impl<E> ErrorWithLocation<E> {
     pub fn from_error<F: Into<E>>(other: F) -> ErrorWithLocation<E> {
         ErrorWithLocation::new(Location::Unspecified, other.into())
     }
+
+    pub fn convert<F: From<E>>(self) -> ErrorWithLocation<F> {
+        ErrorWithLocation {
+            location: self.location,
+            error: self.error.into(),
+        }
+    }
 }
 
 impl<E: fmt::Display + Helpful> ErrorWithLocation<E> {
