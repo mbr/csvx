@@ -203,7 +203,6 @@ impl From<SchemaLoadError> for CheckError {
 }
 
 impl fmt::Display for CheckError {
-    /// FIXME:
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(cause) = self.cause() {
             write!(f, "{}", cause)
@@ -475,21 +474,126 @@ impl From<csv::Error> for SchemaLoadError {
 
 #[derive(Debug)]
 pub enum ValidationError {
+    /// Generic CSV error
     Csv(csv::Error),
+
+    /// No headers found, file is empty
     MissingHeaders,
-    HeaderMismatch(usize, String),
-    RowLengthMismatch(usize),
-    ValueError(usize, usize, ValueError),
+
+    /// Header in file does not match specification
+    HeaderMismatch(String),
+
+    /// A row has a different length then all the others
+    RowLengthMismatch,
+
+    /// A value error occured
+    ValueError(super::CsvxColumnType, ValueError),
+}
+
+impl fmt::Display for ValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ValidationError::ValueError(ref coltype, ref e) => {
+                write!(f,
+                       "could not parse field `{}` as `{}`: {}",
+                       coltype.id,
+                       coltype.ty,
+                       e)
+            }
+            _ => {
+                if let Some(cause) = self.cause() {
+                    write!(f, "{}", cause)
+                } else {
+                    write!(f, "{}", self.description())
+                }
+            }
+        }
+
+    }
+}
+
+impl error::Error for ValidationError {
+    fn description(&self) -> &str {
+        match *self {
+            ValidationError::Csv(_) => "invalid CSV",
+            ValidationError::MissingHeaders => "missing headers",
+            ValidationError::HeaderMismatch(_) => "header mismatch",
+            ValidationError::RowLengthMismatch => "row length mismatch",
+            ValidationError::ValueError(_, _) => "value error",
+        }
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        match *self {
+            ValidationError::Csv(ref e) => Some(e),
+            ValidationError::ValueError(_, ref e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl Helpful for ValidationError {
+    fn help(&self) -> String {
+        "FIXME".to_owned()
+    }
+}
+
+impl From<csv::Error> for ValidationError {
+    fn from(e: csv::Error) -> ValidationError {
+        ValidationError::Csv(e)
+    }
 }
 
 #[derive(Debug)]
 pub enum ValueError {
+    /// A field that was not NULLABLE had no value
     NonNullable,
+
+    /// Invalid boolean value
     InvalidBool,
+
+    /// Invalid integer
     InvalidInt,
+
+    /// Invalid enum value
     InvalidEnum,
+
+    /// Invalid decimal value
     InvalidDecimal,
+
+    /// Invalid date value
     InvalidDate,
+
+    /// Invalid datetime value
     InvalidDateTime,
+
+    /// Invalid time value
     InvalidTime,
+
+    // FIXME: Add OutOfRange and other errors
+}
+
+impl fmt::Display for ValueError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.description())
+    }
+}
+
+impl error::Error for ValueError {
+    fn description(&self) -> &str {
+        match *self {
+            ValueError::NonNullable => "field is not nullable",
+            ValueError::InvalidBool => "invalid boolean",
+            ValueError::InvalidInt => "invalid integer",
+            ValueError::InvalidEnum => "invalid enum",
+            ValueError::InvalidDecimal => "invalid decimal",
+            ValueError::InvalidDate => "invalid date",
+            ValueError::InvalidDateTime => "invalid datetime",
+            ValueError::InvalidTime => "invalid time",
+        }
+    }
+
+    fn cause(&self) -> Option<&error::Error> {
+        None
+    }
 }

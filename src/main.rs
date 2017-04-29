@@ -16,7 +16,7 @@ use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use clap::{App, Arg, SubCommand};
 use err::{CheckError, ColumnConstraintsError, ColumnTypeError, ErrorLoc, ErrorAtLocation,
           HelpPrinter, Location, ResultLoc, SchemaLoadError, ValidationError, ValueError};
-use std::{io, path, process};
+use std::{fmt, io, path, process};
 use regex::Regex;
 use safe_unwrap::SafeUnwrap;
 use term_painter::{Attr, Color, ToStyle};
@@ -84,12 +84,6 @@ impl CsvxMetadata {
     }
 }
 
-impl From<csv::Error> for ValidationError {
-    fn from(e: csv::Error) -> ValidationError {
-        ValidationError::Csv(e)
-    }
-}
-
 #[derive(Clone, Debug)]
 enum ColumnType {
     String,
@@ -100,6 +94,21 @@ enum ColumnType {
     Date,
     DateTime,
     Time,
+}
+
+impl fmt::Display for ColumnType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            ColumnType::String => write!(f, "STRING"),
+            ColumnType::Bool => write!(f, "BOOL"),
+            ColumnType::Integer => write!(f, "INTEGER"),
+            ColumnType::Enum(ref variants) => write!(f, "ENUM({})", variants.join(",")),
+            ColumnType::Decimal => write!(f, "DECIMAL"),
+            ColumnType::Date => write!(f, "DATE"),
+            ColumnType::DateTime => write!(f, "DATETIME"),
+            ColumnType::Time => write!(f, "TIME"),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -189,7 +198,7 @@ impl<S> TryFrom<S> for ColumnType
 }
 
 #[derive(Clone, Debug)]
-struct CsvxColumnType {
+pub struct CsvxColumnType {
     id: String,
     ty: ColumnType,
     constraints: ColumnConstraints,
@@ -371,44 +380,71 @@ impl CsvxSchema {
         }
     }
 
-    fn validate_file<P: AsRef<path::Path>>(&self, filename: P) -> Result<(), ValidationError> {
-        let mut rdr = csv::Reader::from_file(filename)?.has_headers(true);
+    fn validate_file<P: AsRef<path::Path>>
+        (&self,
+         filename: P)
+         -> Result<(), Vec<ErrorAtLocation<ValidationError, Location>>> {
+        let filename_s = filename.as_ref().to_string_lossy().to_string();
 
-        let headers = rdr.headers()?;
+        let mut rdr = csv::Reader::from_file(filename)
+            .map_err(|e| vec![e.at(Location::File(filename_s.clone()))])?
+            .has_headers(true);
+
+        let headers = rdr.headers()
+            .map_err(|e| vec![e.at(Location::FileLine(filename_s.clone(), 1))])?;
 
         if headers.len() != self.columns.len() {
-            return Err(ValidationError::MissingHeaders);
+            return Err(vec![ValidationError::MissingHeaders
+                                .at(Location::FileLine(filename_s.clone(), 1))]);
         }
+
+        let mut errs = Vec::new();
 
         for (idx, (spec, actual)) in self.columns.iter().zip(headers.iter()).enumerate() {
             if spec.id.as_str() != actual {
-                return Err(ValidationError::HeaderMismatch(idx + 1, actual.to_string()));
+                errs.push(ValidationError::HeaderMismatch(actual.to_string())
+                              .at(Location::FileLineField(filename_s.clone(), 1, idx + 1)));
             }
+        }
+
+        // bail if headers are incorrect
+        if errs.len() != 0 {
+            return Err(errs);
         }
 
         for (rowid, row) in rdr.records().enumerate() {
             let lineno = rowid + 2;
 
-            let fields = row?;
+            // bail early if we cannot read the fields, this is probably a
+            // major csv issue
+            let fields = row.map_err(|e| vec![e.at(Location::FileLine(filename_s.clone(), 1))])?;
 
             if fields.len() != self.columns.len() {
-                return Err(ValidationError::RowLengthMismatch(lineno));
+                errs.push(ValidationError::RowLengthMismatch
+                              .at(Location::FileLine(filename_s.clone(), lineno)));
+                continue;
             }
 
             for (idx, (col, value)) in self.columns.iter().zip(fields.iter()).enumerate() {
                 if let Err(e) = col.validate_value(value) {
                     let col_idx = idx + 1;
-                    println!("Value Error in line {}, column {}. Value: {}. Error: {:?}",
-                             lineno,
-                             col_idx,
-                             value,
-                             e);
-                    return Err(ValidationError::ValueError(lineno, col_idx, e));
+
+                    // FIXME: cloning the full column type is a wart here
+                    errs.push(ValidationError::ValueError(col.clone(), e)
+                                  .at(Location::FileLineField(filename_s.clone(),
+                                                              lineno,
+                                                              col_idx)));
+                    continue;
                 }
             }
         }
 
-        Ok(())
+        if errs.len() != 0 {
+            return Err(errs);
+        } else {
+            Ok(())
+        }
+
     }
 }
 
@@ -505,12 +541,14 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
             Ok(()) => println!("{} {}",
                  Color::Green.paint(Attr::Bold.paint("✓")),
                  input_file.as_ref().to_string_lossy()),
-            Err(e) => {
+            Err(errs) => {
                 all_good = false;
                 println!("{} {}",
                          Color::Red.paint(Attr::Bold.paint("✗")),
                          input_file.as_ref().to_string_lossy());
-                println!("ERRORS GO HERE");
+                for e in errs {
+                    e.print_help();
+                }
             }
         }
     }
@@ -534,7 +572,7 @@ fn main() {
                                  .takes_value(true)));
     let m = app.clone().get_matches();
 
-    let res = match m.subcommand {
+    match m.subcommand {
         Some(ref cmd) if cmd.name == "check" => {
             let res = cmd_check(cmd.matches
                                     .value_of("schema_path")
