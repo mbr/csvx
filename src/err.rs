@@ -40,30 +40,30 @@ pub struct ErrorWithLocation<E> {
 
 pub trait ErrorLoc<E>: Sized {
     #[inline]
-    fn location(self, location: Location) -> ErrorWithLocation<E>;
+    fn at(self, location: Location) -> ErrorWithLocation<E>;
 }
 
 impl<E: error::Error, F: Into<E>> ErrorLoc<E> for F {
     #[inline]
-    fn location(self, location: Location) -> ErrorWithLocation<E> {
+    fn at(self, location: Location) -> ErrorWithLocation<E> {
         ErrorWithLocation::new(location, self.into())
     }
 }
 
 pub trait ResultLoc<V, E: ErrorLoc<E>>: Sized {
     #[inline]
-    fn err_location(self, location: Location) -> Result<V, ErrorWithLocation<E>>;
+    fn error_at(self, location: Location) -> Result<V, ErrorWithLocation<E>>;
 
     #[inline]
-    fn err_loc<F: FnOnce() -> Location>(self, floc: F) -> Result<V, ErrorWithLocation<E>> {
-        self.err_location(floc())
+    fn err_at<F: FnOnce() -> Location>(self, floc: F) -> Result<V, ErrorWithLocation<E>> {
+        self.error_at(floc())
     }
 }
 
 impl<V, E: error::Error, F: Into<E>> ResultLoc<V, E> for Result<V, F> {
     #[inline]
-    fn err_location(self, location: Location) -> Result<V, ErrorWithLocation<E>> {
-        self.map_err(|f| f.location(location))
+    fn error_at(self, location: Location) -> Result<V, ErrorWithLocation<E>> {
+        self.map_err(|f| f.at(location))
     }
 }
 
