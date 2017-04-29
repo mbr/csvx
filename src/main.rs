@@ -12,8 +12,8 @@ mod err;
 
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use clap::{App, Arg, SubCommand};
-use err::{CheckError, ColumnConstraintsError, ColumnTypeError, SchemaLoadError, ValidationError,
-          ValueError};
+use err::{CheckError, ColumnConstraintsError, ColumnTypeError, ErrorWithLocation, SchemaLoadError,
+          ValidationError, ValueError};
 use std::{io, path, process};
 use regex::Regex;
 use safe_unwrap::SafeUnwrap;
@@ -431,9 +431,10 @@ fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
 ///
 /// Fatal and schema errors are returned as errors; failing input files just
 /// result in a return value of `Ok(false)`.
-fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>(schema_path: P,
-                                                         input_files: Vec<Q>)
-                                                         -> Result<bool, CheckError> {
+fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
+    (schema_path: P,
+     input_files: Vec<Q>)
+     -> Result<bool, ErrorWithLocation<CheckError>> {
     let meta_fn = schema_path
         .as_ref()
         .to_owned()
@@ -443,20 +444,17 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>(schema_path: P,
         .ok_or(CheckError::SchemaPathUtf8Error)?
         .to_owned();
 
-    println!("Loading schema {:?}", meta_fn);
     // FIXME: expect
     let meta = parse_filename(meta_fn)
         .ok_or(CheckError::InvalidSchemaFilename)?;
 
     if !meta.is_schema() {
-        println!("The supplied file {:?} is not a csvx schema (wrong
-            filename)",
-                 schema_path.as_ref());
-        return Err(CheckError::NotASchema);
+        return Err(CheckError::NotASchema.into());
     }
 
     // load schema
-    let schema = CsvxSchema::from_file(schema_path)?;
+    let schema = CsvxSchema::from_file(schema_path)
+        .map_err(|e| ErrorWithLocation::from_error(e))?;
 
     let mut all_good = true;
     for input_file in input_files {
