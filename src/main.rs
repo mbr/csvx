@@ -16,7 +16,7 @@ use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use clap::{App, Arg, SubCommand};
 use err::{CheckError, ColumnConstraintsError, ColumnTypeError, ErrorLoc, ErrorAtLocation,
           HelpPrinter, Location, ResultLoc, SchemaLoadError, ValidationError, ValueError};
-use std::{fmt, io, path, process};
+use std::{fmt, io, path, process, slice};
 use regex::Regex;
 use safe_unwrap::SafeUnwrap;
 use term_painter::{Attr, Color, ToStyle};
@@ -123,6 +123,19 @@ impl Default for ColumnConstraints {
             nullable: false,
             unique: false,
         }
+    }
+}
+
+impl fmt::Display for ColumnConstraints {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut parts = Vec::new();
+        if self.nullable {
+            parts.push("NULLABLE");
+        }
+        if self.unique {
+            parts.push("UNIQUE");
+        }
+        write!(f, "{}", parts.join(","))
     }
 }
 
@@ -253,8 +266,7 @@ impl CsvxColumnType {
                 if variants.contains(&v) {
                     Ok(Some(Value::Enum(v)))
                 } else {
-                    Err(ValueError::InvalidEnum(s.as_ref().to_owned(),
-                        variants.clone()))
+                    Err(ValueError::InvalidEnum(s.as_ref().to_owned(), variants.clone()))
                 }
             }
             ColumnType::Decimal => {
@@ -287,8 +299,7 @@ impl CsvxColumnType {
                                                     .ok_or_else(|| {
                                                                     ValueError::InvalidTime (s.as_ref ().to_string ()) })?)))
                     }
-                    None => Err(ValueError::InvalidDateTime(s.as_ref
-                        ().to_string())),
+                    None => Err(ValueError::InvalidDateTime(s.as_ref().to_string())),
                 }
             }
             ColumnType::Time => {
@@ -313,6 +324,10 @@ struct CsvxSchema {
 }
 
 impl CsvxSchema {
+    fn iter_columns(&self) -> slice::Iter<CsvxColumnType> {
+        self.columns.iter()
+    }
+
     fn from_file<P: AsRef<path::Path>>
         (filename: P)
          -> Result<CsvxSchema, ErrorAtLocation<SchemaLoadError, Location>> {
@@ -514,11 +529,11 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
         .safe_unwrap("already verified UTF8")
         .to_owned();
 
-    let meta =
-        parse_filename(meta_fn.clone())
-            .ok_or_else(|| {
-                            CheckError::InvalidCsvxFilename(meta_fn).at(Location::File (schema_path_s.clone()))
-                        })?;
+    let meta = parse_filename(meta_fn.clone())
+        .ok_or_else(|| {
+                        CheckError::InvalidCsvxFilename(meta_fn)
+                            .at(Location::File(schema_path_s.clone()))
+                    })?;
 
     if !meta.is_schema() {
         return Err(CheckError::NotASchema.at(Location::File(schema_path_s.clone())));
@@ -538,20 +553,31 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
         // validate filename first.
         // FIXME: should be moved into validation, as filename is validated
         //        and this whole section is a mess!
-        let input_fn_s = input_file.as_ref().to_owned().file_name().ok_or_else
-        (||unimplemented!()).unwrap().to_string_lossy().to_string();
-        let inp_meta = parse_filename(&input_fn_s).ok_or_else(||
-            CheckError::InvalidCsvxFilename(input_fn_s.clone()).at
-            (Location::File(input_fn_s.clone())))?;
+        let input_fn_s = input_file
+            .as_ref()
+            .to_owned()
+            .file_name()
+            .ok_or_else(|| unimplemented!())
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        let inp_meta = parse_filename(&input_fn_s)
+            .ok_or_else(|| {
+                            CheckError::InvalidCsvxFilename(input_fn_s.clone())
+                                .at(Location::File(input_fn_s.clone()))
+                        })?;
 
         // FIXME: should not abort just because schema of one file did not
         //        fit
         if inp_meta.schema != meta.table_name {
-            return Err(CheckError::SchemaMismatch{
-                schema: meta.table_name.clone(),
-                data: inp_meta.schema.clone()
-            }.at(Location::File(input_file.as_ref().to_string_lossy
-                ().to_string())))
+            return Err(CheckError::SchemaMismatch {
+                               schema: meta.table_name.clone(),
+                               data: inp_meta.schema.clone(),
+                           }
+                           .at(Location::File(input_file
+                                                  .as_ref()
+                                                  .to_string_lossy()
+                                                  .to_string())));
         }
 
         match schema.validate_file(&input_file) {
@@ -573,6 +599,58 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
     Ok(all_good)
 }
 
+fn underline(s: &str, c: char) -> String {
+    s.chars().map(|_| c).collect()
+}
+
+fn cmd_pretty<P: AsRef<path::Path>>(schema_path: P) {
+    // FIXME: there should be a common function for this stuff
+    // load meta
+    let meta_fn = schema_path
+        .as_ref()
+        .to_owned()
+        .file_name()
+        .expect("error loading schema - please validate first")
+        .to_str()
+        .safe_unwrap("already verified UTF8")
+        .to_owned();
+
+    let meta =
+        parse_filename(meta_fn.clone()).expect("error loading schema - please validate first");
+
+    // load schema
+    let schema =
+        CsvxSchema::from_file(schema_path).expect("error loading schema - please validate first");
+
+    println!("{}\n{}\n\n* {}\n* {}\n\n",
+             meta.table_name,
+             underline(&meta.table_name, '='),
+             meta.date,
+             meta.schema);
+
+    for col in schema.iter_columns() {
+        match col.ty {
+            ColumnType::Enum(_) => {
+                let header = format!("{}: `ENUM`", col.id);
+                print!("{}\n{}\n\n* `{}` \n",
+                       header,
+                       underline(&header, '-'),
+                       col.ty);
+            }
+            _ => {
+                let header = format!("{}: `{}`", col.id, col.ty);
+                print!("{}\n{}\n\n", header, underline(&header, '-'));
+            }
+        }
+
+        let cons = format!("{}", col.constraints);
+        if cons.len() > 0 {
+            print!("* `{}`\n", cons);
+        }
+        print!("\n{}\n\n\n", col.description);
+    }
+}
+
 fn main() {
     let app = App::new("csvx")
         .version("5.2.0")
@@ -586,6 +664,12 @@ fn main() {
                         .arg(Arg::with_name("input_files")
                                  .help("Input files to check")
                                  .multiple(true)
+                                 .takes_value(true)))
+        .subcommand(SubCommand::with_name("pretty")
+                        .about("Generate Markdown documentation")
+                        .arg(Arg::with_name("schema_path")
+                                 .help("Schema to generate documentation for")
+                                 .required(true)
                                  .takes_value(true)));
     let m = app.clone().get_matches();
 
@@ -613,7 +697,15 @@ fn main() {
                 }
             }
         }
-        _ => app.write_help(&mut io::stdout()).unwrap(),
+        Some(ref cmd) if cmd.name == "pretty" => {
+            cmd_pretty(cmd.matches
+                           .value_of("schema_path")
+                           .safe_unwrap("required argument"));
+        }
+        _ => {
+            app.write_help(&mut io::stdout()).unwrap();
+            println!();
+        }
     };
 
 }
