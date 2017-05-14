@@ -185,7 +185,7 @@ impl Value {
         match self {
             Value::String(s) => Some(s),
             Value::Decimal(d) => Some(d),
-            _ => None
+            _ => None,
         }
     }
 
@@ -473,8 +473,10 @@ impl CsvxSchema {
         }
     }
 
-    pub fn parse_row<T: AsRef<[String]>>(&self, fields: &T)
-                 -> Result<Vec<Option<Value>>, ErrorAtLocation<ValidationError, usize>> {
+    pub fn parse_row<T: AsRef<[String]>>
+        (&self,
+         fields: &T)
+         -> Result<Vec<Option<Value>>, ErrorAtLocation<ValidationError, usize>> {
         let mut rv = Vec::with_capacity(self.columns.len());
         let fields = fields.as_ref();
         for (idx, (col, value)) in self.columns.iter().zip(fields.iter()).enumerate() {
@@ -490,15 +492,21 @@ impl CsvxSchema {
         Ok(rv)
     }
 
-    pub fn read_field<T: AsRef<[String]>>(&self, fields: &T, idx: usize)
-             -> Result<Option<Value>, ValidationError>
-             {
-        let col = self.columns.get(idx).ok_or(ValidationError::SchemaMismatch)?;
-        let raw = fields.as_ref().get(idx).ok_or(ValidationError::SchemaMismatch)?;
+    pub fn read_field<T: AsRef<[String]>>(&self,
+                                          fields: &T,
+                                          idx: usize)
+                                          -> Result<Option<Value>, ValidationError> {
+        let col = self.columns
+            .get(idx)
+            .ok_or(ValidationError::SchemaMismatch)?;
+        let raw = fields
+            .as_ref()
+            .get(idx)
+            .ok_or(ValidationError::SchemaMismatch)?;
 
         let field = col.validate_value(raw)?;
         Ok(field)
-     }
+    }
 }
 
 
