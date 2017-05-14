@@ -408,9 +408,25 @@ impl CsvxSchema {
         } else {
             Ok(())
         }
+    }
 
+    pub fn parse_row(&self, fields: Vec<String>)
+                 -> Result<Vec<Option<Value>>, ErrorAtLocation<ValidationError, usize>> {
+        let mut rv = Vec::with_capacity(self.columns.len());
+        for (idx, (col, value)) in self.columns.iter().zip(fields.iter()).enumerate() {
+            match col.validate_value(value) {
+                Err(e) => {
+                    let col_idx = idx + 1;
+
+                    return Err(ValidationError::ValueError(e).at(col_idx));
+                }
+                Ok(v) => rv.push(v),
+            }
+        }
+        Ok(rv)
     }
 }
+
 
 #[inline]
 fn cap<T>(c: &regex::Captures, idx: usize) -> T
