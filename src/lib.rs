@@ -278,6 +278,10 @@ impl CsvxSchema {
         self.columns.iter()
     }
 
+    pub fn col_idx(&self, col: &str) -> Option<usize> {
+        self.columns.iter().position(|c| col == c.id)
+    }
+
     pub fn from_file<P: AsRef<path::Path>>
         (filename: P)
          -> Result<CsvxSchema, ErrorAtLocation<SchemaLoadError, Location>> {
