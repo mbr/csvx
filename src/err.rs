@@ -513,6 +513,9 @@ pub enum ValidationError {
 
     /// A value error occured
     ValueError(ValueError),
+
+    /// The request conversion or operation is not possible.
+    SchemaMismatch,
 }
 
 impl fmt::Display for ValidationError {
@@ -537,6 +540,7 @@ impl error::Error for ValidationError {
             ValidationError::MissingHeaders => "missing headers",
             ValidationError::HeaderMismatch(_) => "header mismatch",
             ValidationError::ValueError(_) => "value error",
+            ValidationError::SchemaMismatch => "schema mismatch",
         }
     }
 
@@ -546,6 +550,12 @@ impl error::Error for ValidationError {
             ValidationError::ValueError(ref e) => Some(e),
             _ => None,
         }
+    }
+}
+
+impl From<ValueError> for ValidationError {
+    fn from(e: ValueError) -> ValidationError {
+        ValidationError::ValueError(e)
     }
 }
 
@@ -564,6 +574,12 @@ impl Helpful for ValidationError {
                 "A header did not match the one specified.".to_owned()
             }
             ValidationError::ValueError(ref e) => e.help(),
+            ValidationError::SchemaMismatch => {
+                "The schema used loaded does not match the API call. This is \
+                most likely a programming error."
+                        .to_owned()
+            }
+
         }
     }
 }
