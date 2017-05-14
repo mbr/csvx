@@ -173,11 +173,69 @@ pub enum Value {
     String(String),
     Bool(bool),
     Integer(i64),
-    Enum(String),
+    Enum(usize),
     Decimal(String),
     Date(NaiveDate),
     DateTime(NaiveDateTime),
     Time(NaiveTime),
+}
+
+impl Value {
+    pub fn to_string(self) -> Option<String> {
+        match self {
+            Value::String(s) => Some(s),
+            Value::Decimal(d) => Some(d),
+            _ => None
+        }
+    }
+
+    pub fn to_bool(self) -> Option<bool> {
+        if let Value::Bool(val) = self {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    pub fn to_i64(self) -> Option<i64> {
+        if let Value::Integer(val) = self {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    pub fn to_date(self) -> Option<NaiveDate> {
+        if let Value::Date(val) = self {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    pub fn to_datetime(self) -> Option<NaiveDateTime> {
+        if let Value::DateTime(val) = self {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    pub fn to_time(self) -> Option<NaiveTime> {
+        if let Value::Time(val) = self {
+            Some(val)
+        } else {
+            None
+        }
+    }
+
+    pub fn to_usize(self) -> Option<usize> {
+        if let Value::Enum(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
 }
 
 impl CsvxColumnType {
@@ -212,9 +270,10 @@ impl CsvxColumnType {
                                                     })?)))
             }
             ColumnType::Enum(ref variants) => {
-                let v = s.as_ref().to_owned();
-                if variants.contains(&v) {
-                    Ok(Some(Value::Enum(v)))
+                let v = s.as_ref();
+
+                if let Some(p) = variants.iter().position(|e| e == v) {
+                    Ok(Some(Value::Enum(p)))
                 } else {
                     Err(ValueError::InvalidEnum(s.as_ref().to_owned(), variants.clone()))
                 }
