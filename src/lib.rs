@@ -507,6 +507,15 @@ impl CsvxSchema {
         let field = col.validate_value(raw)?;
         Ok(field)
     }
+
+    pub fn read_field_by_name<T: AsRef<[String]>>(&self,
+                                                  fields: &T,
+                                                  name: &str)
+                                                  -> Result<Option<Value>, ValidationError> {
+        let idx = self.col_idx(name)
+            .ok_or(ValidationError::SchemaMismatch)?;
+        self.read_field(fields, idx)
+    }
 }
 
 
