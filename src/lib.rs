@@ -410,9 +410,10 @@ impl CsvxSchema {
         }
     }
 
-    pub fn parse_row(&self, fields: &Vec<String>)
+    pub fn parse_row<T: AsRef<[String]>>(&self, fields: &T)
                  -> Result<Vec<Option<Value>>, ErrorAtLocation<ValidationError, usize>> {
         let mut rv = Vec::with_capacity(self.columns.len());
+        let fields = fields.as_ref();
         for (idx, (col, value)) in self.columns.iter().zip(fields.iter()).enumerate() {
             match col.validate_value(value) {
                 Err(e) => {
