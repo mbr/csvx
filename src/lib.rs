@@ -63,8 +63,8 @@ impl fmt::Display for ColumnType {
 
 #[derive(Clone, Debug)]
 pub struct ColumnConstraints {
-    nullable: bool,
-    unique: bool,
+    pub nullable: bool,
+    pub unique: bool,
 }
 
 impl Default for ColumnConstraints {

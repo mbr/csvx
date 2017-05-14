@@ -9,6 +9,7 @@ use safe_unwrap::SafeUnwrap;
 use std::{io, path, process};
 use term_painter::{Attr, Color, ToStyle};
 
+use csvx::ColumnType;
 use csvx::err::{CheckError, ErrorLoc, ErrorAtLocation, HelpPrinter, Location};
 
 /// Check input files against schema.
@@ -138,7 +139,7 @@ fn cmd_pretty<P: AsRef<path::Path>>(schema_path: P) {
 
     for col in schema.iter_columns() {
         match col.ty {
-            csvx::ColumnType::Enum(_) => {
+            ColumnType::Enum(_) => {
                 let header = format!("{}: `ENUM`", col.id);
                 print!("{}\n{}\n\n* `{}` \n",
                        header,
@@ -157,6 +158,66 @@ fn cmd_pretty<P: AsRef<path::Path>>(schema_path: P) {
         }
         print!("\n{}\n\n\n", col.description);
     }
+}
+
+fn cmd_gen<P: AsRef<path::Path>>(schema_path: P) {
+    // FIXME: there should be a common function for this stuff
+    // load meta
+    let meta_fn = schema_path
+        .as_ref()
+        .to_owned()
+        .file_name()
+        .expect("error loading schema - please validate first")
+        .to_str()
+        .safe_unwrap("already verified UTF8")
+        .to_owned();
+
+    let meta = csvx::parse_filename(meta_fn.clone()).expect("error loading schema -
+            please validate first");
+
+    // load schema
+    let schema = csvx::CsvxSchema::from_file(schema_path).expect("error loading schema -
+            please validate first");
+
+    println!("struct {} {{", meta.table_name.replace("-", "_"),);
+
+    for col in schema.iter_columns() {
+        let mut ty_s = match col.ty {
+                ColumnType::String => "String",
+                ColumnType::Bool => "bool",
+                ColumnType::Integer => "i64",
+                ColumnType::Enum(ref variants) => "FIXME",
+                ColumnType::Decimal => "String",
+                ColumnType::Date => "NaiveDate",
+                ColumnType::DateTime => "NaiveDateTime",
+                ColumnType::Time => "NaiveTime",
+            }
+            .to_owned();
+        if col.constraints.nullable {
+            ty_s = format!("Option<{}>", ty_s);
+        }
+        println!("    {}: {},", col.id, ty_s);
+        // match col.ty {
+        //     ColumnType::Enum(_) => {
+        //         let header = format!("{}: `ENUM`", col.id);
+        //         print!("{}\n{}\n\n* `{}` \n",
+        //                header,
+        //                underline(&header, '-'),
+        //                col.ty);
+        //     }
+        //     _ => {
+        //         let header = format!("{}: `{}`", col.id, col.ty);
+        //         print!("{}\n{}\n\n", header, underline(&header, '-'));
+        //     }
+        // }
+
+        // let cons = format!("{}", col.constraints);
+        // if cons.len() > 0 {
+        //     print!("* `{}`\n", cons);
+        // }
+        // print!("\n{}\n\n\n", col.description);
+    }
+    println!("}}");
 }
 
 fn main() {
@@ -178,7 +239,14 @@ fn main() {
                         .arg(Arg::with_name("schema_path")
                                  .help("Schema to generate documentation for")
                                  .required(true)
+                                 .takes_value(true)))
+        .subcommand(SubCommand::with_name("gen")
+                        .about("Generate Rust code structure")
+                        .arg(Arg::with_name("schema_path")
+                                 .help("Schema to generate code for")
+                                 .required(true)
                                  .takes_value(true)));
+
     let m = app.clone().get_matches();
 
     match m.subcommand {
@@ -209,6 +277,11 @@ fn main() {
             cmd_pretty(cmd.matches
                            .value_of("schema_path")
                            .safe_unwrap("required argument"));
+        }
+        Some(ref cmd) if cmd.name == "gen" => {
+            cmd_gen(cmd.matches
+                        .value_of("schema_path")
+                        .safe_unwrap("required argument"));
         }
         _ => {
             app.write_help(&mut io::stdout()).unwrap();
