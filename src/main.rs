@@ -197,25 +197,6 @@ fn cmd_gen<P: AsRef<path::Path>>(schema_path: P) {
             ty_s = format!("Option<{}>", ty_s);
         }
         println!("    {}: {},", col.id, ty_s);
-        // match col.ty {
-        //     ColumnType::Enum(_) => {
-        //         let header = format!("{}: `ENUM`", col.id);
-        //         print!("{}\n{}\n\n* `{}` \n",
-        //                header,
-        //                underline(&header, '-'),
-        //                col.ty);
-        //     }
-        //     _ => {
-        //         let header = format!("{}: `{}`", col.id, col.ty);
-        //         print!("{}\n{}\n\n", header, underline(&header, '-'));
-        //     }
-        // }
-
-        // let cons = format!("{}", col.constraints);
-        // if cons.len() > 0 {
-        //     print!("* `{}`\n", cons);
-        // }
-        // print!("\n{}\n\n\n", col.description);
     }
     println!("}}");
 }
