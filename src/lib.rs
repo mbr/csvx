@@ -169,7 +169,7 @@ pub struct CsvxColumnType {
     pub description: String,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Value {
     String(String),
     Bool(bool),
