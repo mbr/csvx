@@ -15,7 +15,8 @@ mod regexes;
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use err::{ColumnConstraintsError, ColumnTypeError, ErrorLoc, ErrorAtLocation, Location, ResultLoc,
           SchemaLoadError, ValidationError, ValueError};
-use std::{fmt, path, slice};
+use std::{fmt, fs, path, slice};
+use std::io::Read;
 use safe_unwrap::SafeUnwrap;
 use regexes::{IDENT_UNDERSCORE_RE, ENUM_EXPR_RE, CONSTRAINT_RE, DECIMAL_RE, DATE_RE, DATETIME_RE,
               FN_RE, TIME_RE};
@@ -346,11 +347,23 @@ impl CsvxSchema {
          -> Result<CsvxSchema, ErrorAtLocation<SchemaLoadError, Location>> {
 
         // have a copy of the filename as a string ready for error locations
-        let filename_s = filename.as_ref().to_string_lossy().to_string();
+        let filename_s: String = filename.as_ref().to_string_lossy().into_owned();
+        let mut file = fs::File::open(filename)
+            .err_at(|| Location::File(filename_s.clone()))?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)
+            .err_at(|| Location::File(filename_s.clone()))?;
 
-        let mut rdr = csv::Reader::from_file(filename)
-            .err_at(|| Location::File(filename_s.clone()))?
-            .has_headers(false);
+        Self::from_string(contents.as_str(), filename_s.as_ref())
+    }
+
+    pub fn from_string(src: &str,
+                       filename: &str)
+                       -> Result<CsvxSchema, ErrorAtLocation<SchemaLoadError, Location>> {
+        // have a copy of the filename as a string ready for error locations
+        let filename_s = filename.to_string();
+
+        let mut rdr = csv::Reader::from_string(src).has_headers(false);
 
         let mut it = rdr.decode();
         let header: Option<Result<(String, String, String, String), _>> = it.next();
