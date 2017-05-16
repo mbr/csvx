@@ -1,5 +1,5 @@
 use csv;
-use std::{cmp, error, fmt};
+use std::{cmp, error, fmt, io};
 use std::error::Error;
 use term_painter::{Attr, Color, ToStyle};
 use term_size;
@@ -405,6 +405,9 @@ impl Helpful for ColumnTypeError {
 /// Schema loading error
 #[derive(Debug)]
 pub enum SchemaLoadError {
+    /// Generic IO error
+    Io(io::Error),
+
     /// Generic CSV parsing error
     Csv(csv::Error),
 
@@ -443,6 +446,7 @@ impl fmt::Display for SchemaLoadError {
 impl error::Error for SchemaLoadError {
     fn description(&self) -> &str {
         match *self {
+            SchemaLoadError::Io(_) => "IO error",
             SchemaLoadError::Csv(_) => "invalid CSV",
             SchemaLoadError::MissingHeader => "missing header",
             SchemaLoadError::BadHeader => "header is invalid",
@@ -454,6 +458,7 @@ impl error::Error for SchemaLoadError {
 
     fn cause(&self) -> Option<&error::Error> {
         match *self {
+            SchemaLoadError::Io(ref e) => Some(e),
             SchemaLoadError::Csv(ref e) => Some(e),
             SchemaLoadError::BadType(ref e) => Some(e),
             SchemaLoadError::BadConstraints(ref e) => Some(e),
@@ -465,6 +470,7 @@ impl error::Error for SchemaLoadError {
 impl Helpful for SchemaLoadError {
     fn help(&self) -> String {
         match *self {
+            SchemaLoadError::Io(_) => "There was an error accessing the CSV file.".to_owned(),
             SchemaLoadError::Csv(_) => {
                 "The CSV file could not be loaded. Please ensure that the \
                 file exists and is a valid CSV file according to the \
@@ -497,6 +503,12 @@ impl Helpful for SchemaLoadError {
 impl From<csv::Error> for SchemaLoadError {
     fn from(e: csv::Error) -> SchemaLoadError {
         SchemaLoadError::Csv(e)
+    }
+}
+
+impl From<io::Error> for SchemaLoadError {
+    fn from(e: io::Error) -> SchemaLoadError {
+        SchemaLoadError::Io(e)
     }
 }
 
