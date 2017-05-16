@@ -203,7 +203,7 @@ fn cmd_gen<P: AsRef<path::Path>>(schema_path: P) {
 
 fn main() {
     let app = App::new("csvx")
-        .version("5.2.0")
+        .version("5.4.0")
         .about("csvx utility")
         .subcommand(SubCommand::with_name("check")
                         .about("Check csvx files for conformance")
