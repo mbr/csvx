@@ -580,7 +580,7 @@ impl Helpful for ValidationError {
                         .to_owned()
             }
             ValidationError::MissingHeaders => {
-                "No headers were found, the file is empty.".to_owned()
+                "The number of headers in the file does not match the specification".to_owned()
             }
             ValidationError::HeaderMismatch(_) => {
                 "A header did not match the one specified.".to_owned()
