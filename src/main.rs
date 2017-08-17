@@ -205,7 +205,7 @@ fn cmd_gen<P: AsRef<path::Path>>(schema_path: P) {
             ColumnType::String => "String",
             ColumnType::Bool => "bool",
             ColumnType::Integer => "i64",
-            ColumnType::Enum(ref variants) => "FIXME",
+            ColumnType::Enum(_) => "FIXME",
             ColumnType::Decimal => "String",
             ColumnType::Date => "NaiveDate",
             ColumnType::DateTime => "NaiveDateTime",
