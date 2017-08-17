@@ -91,13 +91,16 @@ impl fmt::Display for ColumnConstraints {
 }
 
 impl<S> TryFrom<S> for ColumnConstraints
-    where S: AsRef<str>
+where
+    S: AsRef<str>,
 {
     type Err = ColumnConstraintsError;
 
     fn try_from(s: S) -> Result<ColumnConstraints, Self::Err> {
         if !CONSTRAINT_RE.is_match(s.as_ref()) {
-            return Err(ColumnConstraintsError::MalformedConstraints(s.as_ref().to_string()));
+            return Err(ColumnConstraintsError::MalformedConstraints(
+                s.as_ref().to_string(),
+            ));
         }
 
         let mut ccs = ColumnConstraints::default();
@@ -114,7 +117,11 @@ impl<S> TryFrom<S> for ColumnConstraints
                 "UNIQUE" => {
                     ccs.unique = true;
                 }
-                _ => return Err(ColumnConstraintsError::UnknownConstraint(s.as_ref().to_string())),
+                _ => {
+                    return Err(ColumnConstraintsError::UnknownConstraint(
+                        s.as_ref().to_string(),
+                    ))
+                }
             }
 
         }
@@ -124,7 +131,8 @@ impl<S> TryFrom<S> for ColumnConstraints
 }
 
 impl<S> TryFrom<S> for ColumnType
-    where S: AsRef<str>
+where
+    S: AsRef<str>,
 {
     type Err = ColumnTypeError;
 
@@ -263,12 +271,9 @@ impl CsvxColumnType {
             }
             ColumnType::Integer => {
                 // FIXME: check for leading zeros
-                Ok(Some(Value::Integer(s.as_ref()
-                                           .parse()
-                                           .map_err(|_| {
-                                                        ValueError::InvalidInt(s.as_ref()
-                                                                                   .to_owned())
-                                                    })?)))
+                Ok(Some(Value::Integer(s.as_ref().parse().map_err(|_| {
+                    ValueError::InvalidInt(s.as_ref().to_owned())
+                })?)))
             }
             ColumnType::Enum(ref variants) => {
                 let v = s.as_ref();
@@ -276,7 +281,10 @@ impl CsvxColumnType {
                 if let Some(p) = variants.iter().position(|e| e == v) {
                     Ok(Some(Value::Enum(p)))
                 } else {
-                    Err(ValueError::InvalidEnum(s.as_ref().to_owned(), variants.clone()))
+                    Err(ValueError::InvalidEnum(
+                        s.as_ref().to_owned(),
+                        variants.clone(),
+                    ))
                 }
             }
             ColumnType::Decimal => {
@@ -289,12 +297,10 @@ impl CsvxColumnType {
             ColumnType::Date => {
                 match DATE_RE.captures(s.as_ref()) {
                     Some(ref c) => {
-                        Ok(Some(Value::Date(NaiveDate::from_ymd_opt(cap(c, 1),
-                                                                    cap(c, 2),
-                                                                    cap(c, 3))
-              .ok_or_else(||{
-                      ValueError::InvalidDate(s.as_ref().to_owned ()) }
-                      )?)))
+                        Ok(Some(Value::Date(
+                            NaiveDate::from_ymd_opt(cap(c, 1), cap(c, 2), cap(c, 3))
+                                .ok_or_else(|| ValueError::InvalidDate(s.as_ref().to_owned()))?,
+                        )))
                     }
                     None => Err(ValueError::InvalidDate(s.as_ref().to_owned())),
                 }
@@ -305,9 +311,13 @@ impl CsvxColumnType {
                         let dt =
                             NaiveDate::from_ymd_opt(cap(c, 1), cap(c, 2), cap(c, 3))
                                 .ok_or_else(|| ValueError::InvalidDate(s.as_ref().to_string()))?;
-                        Ok(Some(Value::DateTime(dt.and_hms_opt(cap(c, 4), cap(c, 5), cap(c, 6))
-                                                    .ok_or_else(|| {
-                                                                    ValueError::InvalidTime (s.as_ref ().to_string ()) })?)))
+                        Ok(Some(Value::DateTime(
+                            dt.and_hms_opt(cap(c, 4), cap(c, 5), cap(c, 6)).ok_or_else(
+                                || {
+                                    ValueError::InvalidTime(s.as_ref().to_string())
+                                },
+                            )?,
+                        )))
                     }
                     None => Err(ValueError::InvalidDateTime(s.as_ref().to_string())),
                 }
@@ -315,11 +325,10 @@ impl CsvxColumnType {
             ColumnType::Time => {
                 match TIME_RE.captures(s.as_ref()) {
                     Some(ref c) => {
-                        Ok(Some(Value::Time(NaiveTime::from_hms_opt(cap(c, 1),
-                                                                    cap(c, 2),
-                                                                    cap(c, 3))
-                                                    .ok_or_else(||
-                                                        ValueError::InvalidTime (s.as_ref ().to_string ()))?)))
+                        Ok(Some(Value::Time(
+                            NaiveTime::from_hms_opt(cap(c, 1), cap(c, 2), cap(c, 3))
+                                .ok_or_else(|| ValueError::InvalidTime(s.as_ref().to_string()))?,
+                        )))
                     }
                     None => Err(ValueError::InvalidTime(s.as_ref().to_string())),
                 }
@@ -342,24 +351,27 @@ impl CsvxSchema {
         self.columns.iter().position(|c| col == c.id)
     }
 
-    pub fn from_file<P: AsRef<path::Path>>
-        (filename: P)
-         -> Result<CsvxSchema, ErrorAtLocation<SchemaLoadError, Location>> {
+    pub fn from_file<P: AsRef<path::Path>>(
+        filename: P,
+    ) -> Result<CsvxSchema, ErrorAtLocation<SchemaLoadError, Location>> {
 
         // have a copy of the filename as a string ready for error locations
         let filename_s: String = filename.as_ref().to_string_lossy().into_owned();
-        let mut file = fs::File::open(filename)
-            .err_at(|| Location::File(filename_s.clone()))?;
+        let mut file = fs::File::open(filename).err_at(|| {
+            Location::File(filename_s.clone())
+        })?;
         let mut contents = String::new();
-        file.read_to_string(&mut contents)
-            .err_at(|| Location::File(filename_s.clone()))?;
+        file.read_to_string(&mut contents).err_at(|| {
+            Location::File(filename_s.clone())
+        })?;
 
         Self::from_string(contents.as_str(), filename_s.as_ref())
     }
 
-    pub fn from_string(src: &str,
-                       filename: &str)
-                       -> Result<CsvxSchema, ErrorAtLocation<SchemaLoadError, Location>> {
+    pub fn from_string(
+        src: &str,
+        filename: &str,
+    ) -> Result<CsvxSchema, ErrorAtLocation<SchemaLoadError, Location>> {
         // have a copy of the filename as a string ready for error locations
         let filename_s = filename.to_string();
 
@@ -372,14 +384,20 @@ impl CsvxSchema {
 
         match header {
             None => {
-                return Err(SchemaLoadError::MissingHeader.at(Location::FileLine(filename_s, 1)))
+                return Err(SchemaLoadError::MissingHeader.at(Location::FileLine(
+                    filename_s,
+                    1,
+                )))
             }
             Some(res) => {
                 let fields = res.err_at(|| Location::File(filename_s.clone()))?;
                 if fields.0 != "id" || fields.1 != "type" || fields.2 != "constraints" ||
-                   fields.3 != "description" {
+                    fields.3 != "description"
+                {
 
-                    return Err(SchemaLoadError::BadHeader.at(Location::FileLine(filename_s, 1)));
+                    return Err(SchemaLoadError::BadHeader.at(
+                        Location::FileLine(filename_s, 1),
+                    ));
                 }
 
                 for (recno, rec) in it.enumerate() {
@@ -389,16 +407,24 @@ impl CsvxSchema {
 
                     // check identifier
                     if !IDENT_UNDERSCORE_RE.is_match(&id.as_str()) {
-                        return Err(SchemaLoadError::BadIdentifier(id)
-                                       .at(Location::FileLineField(filename_s, lineno, 1)));
+                        return Err(SchemaLoadError::BadIdentifier(id).at(
+                            Location::FileLineField(
+                                filename_s,
+                                lineno,
+                                1,
+                            ),
+                        ));
                     }
 
                     // create type
                     let col_type = match ColumnType::try_from(ty.as_str()) {
                         Ok(v) => v,
                         Err(e) => {
-                            return Err(SchemaLoadError::BadType(e)
-                                           .at(Location::FileLineField(filename_s, lineno, 1)))
+                            return Err(SchemaLoadError::BadType(e).at(Location::FileLineField(
+                                filename_s,
+                                lineno,
+                                1,
+                            )))
                         }
                     };
 
@@ -407,8 +433,10 @@ impl CsvxSchema {
                         Ok(v) => v,
                         // FIXME: location
                         Err(e) => {
-                            return Err(SchemaLoadError::BadConstraints(e)
-                                           .at(Location::FileLine(filename_s, lineno)))
+                            return Err(SchemaLoadError::BadConstraints(e).at(Location::FileLine(
+                                filename_s,
+                                lineno,
+                            )))
                         }
                     };
 
@@ -427,30 +455,36 @@ impl CsvxSchema {
         }
     }
 
-    pub fn validate_file<P: AsRef<path::Path>>
-        (&self,
-         filename: P)
-         -> Result<(), Vec<ErrorAtLocation<ValidationError, Location>>> {
+    pub fn validate_file<P: AsRef<path::Path>>(
+        &self,
+        filename: P,
+    ) -> Result<(), Vec<ErrorAtLocation<ValidationError, Location>>> {
         let filename_s = filename.as_ref().to_string_lossy().to_string();
 
         let mut rdr = csv::Reader::from_file(filename)
             .map_err(|e| vec![e.at(Location::File(filename_s.clone()))])?
             .has_headers(true);
 
-        let headers = rdr.headers()
-            .map_err(|e| vec![e.at(Location::FileLine(filename_s.clone(), 1))])?;
+        let headers = rdr.headers().map_err(|e| {
+            vec![e.at(Location::FileLine(filename_s.clone(), 1))]
+        })?;
 
         if headers.len() != self.columns.len() {
-            return Err(vec![ValidationError::MissingHeaders
-                                .at(Location::FileLine(filename_s.clone(), 1))]);
+            return Err(vec![
+                ValidationError::MissingHeaders.at(Location::FileLine(
+                    filename_s.clone(),
+                    1,
+                )),
+            ]);
         }
 
         let mut errs = Vec::new();
 
         for (idx, (spec, actual)) in self.columns.iter().zip(headers.iter()).enumerate() {
             if spec.id.as_str() != actual {
-                errs.push(ValidationError::HeaderMismatch(actual.to_string())
-                              .at(Location::FileLineField(filename_s.clone(), 1, idx + 1)));
+                errs.push(ValidationError::HeaderMismatch(actual.to_string()).at(
+                    Location::FileLineField(filename_s.clone(), 1, idx + 1),
+                ));
             }
         }
 
@@ -464,16 +498,19 @@ impl CsvxSchema {
 
             // bail early if we cannot read the fields, this is probably a
             // major csv issue
-            let fields = row.map_err(|e| vec![e.at(Location::FileLine(filename_s.clone(), 1))])?;
+            let fields = row.map_err(
+                |e| vec![e.at(Location::FileLine(filename_s.clone(), 1))],
+            )?;
 
             for (idx, (col, value)) in self.columns.iter().zip(fields.iter()).enumerate() {
                 if let Err(e) = col.validate_value(value) {
                     let col_idx = idx + 1;
 
-                    errs.push(ValidationError::ValueError(e)
-                                  .at(Location::FileLineField(filename_s.clone(),
-                                                              lineno,
-                                                              col_idx)));
+                    errs.push(ValidationError::ValueError(e).at(Location::FileLineField(
+                        filename_s.clone(),
+                        lineno,
+                        col_idx,
+                    )));
                     continue;
                 }
             }
@@ -486,10 +523,10 @@ impl CsvxSchema {
         }
     }
 
-    pub fn parse_row<T: AsRef<[String]>>
-        (&self,
-         fields: &T)
-         -> Result<Vec<Option<Value>>, ErrorAtLocation<ValidationError, usize>> {
+    pub fn parse_row<T: AsRef<[String]>>(
+        &self,
+        fields: &T,
+    ) -> Result<Vec<Option<Value>>, ErrorAtLocation<ValidationError, usize>> {
         let mut rv = Vec::with_capacity(self.columns.len());
         let fields = fields.as_ref();
         for (idx, (col, value)) in self.columns.iter().zip(fields.iter()).enumerate() {
@@ -505,28 +542,26 @@ impl CsvxSchema {
         Ok(rv)
     }
 
-    pub fn read_field<T: AsRef<[String]>>(&self,
-                                          fields: &T,
-                                          idx: usize)
-                                          -> Result<Option<Value>, ValidationError> {
-        let col = self.columns
-            .get(idx)
-            .ok_or(ValidationError::SchemaMismatch)?;
-        let raw = fields
-            .as_ref()
-            .get(idx)
-            .ok_or(ValidationError::SchemaMismatch)?;
+    pub fn read_field<T: AsRef<[String]>>(
+        &self,
+        fields: &T,
+        idx: usize,
+    ) -> Result<Option<Value>, ValidationError> {
+        let col = self.columns.get(idx).ok_or(ValidationError::SchemaMismatch)?;
+        let raw = fields.as_ref().get(idx).ok_or(
+            ValidationError::SchemaMismatch,
+        )?;
 
         let field = col.validate_value(raw)?;
         Ok(field)
     }
 
-    pub fn read_field_by_name<T: AsRef<[String]>>(&self,
-                                                  fields: &T,
-                                                  name: &str)
-                                                  -> Result<Option<Value>, ValidationError> {
-        let idx = self.col_idx(name)
-            .ok_or(ValidationError::SchemaMismatch)?;
+    pub fn read_field_by_name<T: AsRef<[String]>>(
+        &self,
+        fields: &T,
+        name: &str,
+    ) -> Result<Option<Value>, ValidationError> {
+        let idx = self.col_idx(name).ok_or(ValidationError::SchemaMismatch)?;
         self.read_field(fields, idx)
     }
 }
@@ -534,8 +569,9 @@ impl CsvxSchema {
 
 #[inline]
 fn cap<T>(c: &regex::Captures, idx: usize) -> T
-    where T: std::str::FromStr,
-          T::Err: std::fmt::Debug
+where
+    T: std::str::FromStr,
+    T::Err: std::fmt::Debug,
 {
     c.get(idx)
         .safe_unwrap("valid group")
@@ -548,26 +584,20 @@ fn cap<T>(c: &regex::Captures, idx: usize) -> T
 pub fn parse_filename<S: AsRef<str>>(filename: S) -> Option<CsvxMetadata> {
     match FN_RE.captures(filename.as_ref()) {
         Some(caps) => {
-            let table_name = caps.get(1)
-                .safe_unwrap("known group")
-                .as_str()
-                .to_string();
+            let table_name = caps.get(1).safe_unwrap("known group").as_str().to_string();
             let year = cap(&caps, 2);
             let month = cap(&caps, 3);
             let day = cap(&caps, 4);
-            let schema = caps.get(5)
-                .safe_unwrap("known group")
-                .as_str()
-                .to_string();
+            let schema = caps.get(5).safe_unwrap("known group").as_str().to_string();
 
             Some(CsvxMetadata {
-                     table_name: table_name,
-                     date: match NaiveDate::from_ymd_opt(year, month, day) {
-                         Some(d) => d,
-                         None => return None,
-                     },
-                     schema: schema,
-                 })
+                table_name: table_name,
+                date: match NaiveDate::from_ymd_opt(year, month, day) {
+                    Some(d) => d,
+                    None => return None,
+                },
+                schema: schema,
+            })
         }
         None => None,
     }
@@ -590,12 +620,14 @@ mod test {
 
     #[test]
     fn filename_parsing_parses_valid() {
-        assert_eq!(parse_filename("zoo-nyc_20170401_animals-2.csv").unwrap(),
-                   CsvxMetadata {
-                       table_name: "zoo-nyc".to_owned(),
-                       date: NaiveDate::from_ymd(2017, 04, 01),
-                       schema: "animals-2".to_owned(),
-                   });
+        assert_eq!(
+            parse_filename("zoo-nyc_20170401_animals-2.csv").unwrap(),
+            CsvxMetadata {
+                table_name: "zoo-nyc".to_owned(),
+                date: NaiveDate::from_ymd(2017, 04, 01),
+                schema: "animals-2".to_owned(),
+            }
+        );
     }
 
 }

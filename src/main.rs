@@ -16,10 +16,10 @@ use csvx::err::{CheckError, ErrorLoc, ErrorAtLocation, HelpPrinter, Location};
 ///
 /// Fatal and schema errors are returned as errors; failing input files just
 /// result in a return value of `Ok(false)`.
-fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
-    (schema_path: P,
-     input_files: Vec<Q>)
-     -> Result<bool, ErrorAtLocation<CheckError, Location>> {
+fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>(
+    schema_path: P,
+    input_files: Vec<Q>,
+) -> Result<bool, ErrorAtLocation<CheckError, Location>> {
 
     // ensure schema_path evaluates to a real utf8 path
     let schema_path_s = schema_path
@@ -33,29 +33,34 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
         .as_ref()
         .to_owned()
         .file_name()
-        .ok_or_else(|| CheckError::SchemaNotAFile.at(Location::File(schema_path_s.clone())))?
+        .ok_or_else(|| {
+            CheckError::SchemaNotAFile.at(Location::File(schema_path_s.clone()))
+        })?
         .to_str()
         .safe_unwrap("already verified UTF8")
         .to_owned();
 
-    let meta = csvx::parse_filename(meta_fn.clone())
-        .ok_or_else(|| {
-                        CheckError::InvalidCsvxFilename(meta_fn)
-                            .at(Location::File(schema_path_s.clone()))
-                    })?;
+    let meta = csvx::parse_filename(meta_fn.clone()).ok_or_else(|| {
+        CheckError::InvalidCsvxFilename(meta_fn).at(Location::File(schema_path_s.clone()))
+    })?;
 
     if !meta.is_schema() {
-        return Err(CheckError::NotASchema.at(Location::File(schema_path_s.clone())));
+        return Err(CheckError::NotASchema.at(
+            Location::File(schema_path_s.clone()),
+        ));
     }
 
     // load schema
-    let schema = csvx::CsvxSchema::from_file(schema_path)
-        .map_err(|e| e.convert())?;
+    let schema = csvx::CsvxSchema::from_file(schema_path).map_err(
+        |e| e.convert(),
+    )?;
 
     // schema validated correctly, reward user with a checkmark
-    println!("{} {}",
-             Color::Green.paint(Attr::Bold.paint("✓")),
-             Attr::Bold.paint(schema_path_s));
+    println!(
+        "{} {}",
+        Color::Green.paint(Attr::Bold.paint("✓")),
+        Attr::Bold.paint(schema_path_s)
+    );
 
     let mut all_good = true;
     for input_file in input_files {
@@ -70,23 +75,23 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
             .unwrap()
             .to_string_lossy()
             .to_string();
-        let inp_meta = csvx::parse_filename(&input_fn_s)
-            .ok_or_else(|| {
-                            CheckError::InvalidCsvxFilename(input_fn_s.clone())
-                                .at(Location::File(input_fn_s.clone()))
-                        })?;
+        let inp_meta = csvx::parse_filename(&input_fn_s).ok_or_else(|| {
+            CheckError::InvalidCsvxFilename(input_fn_s.clone()).at(
+                Location::File(input_fn_s.clone()),
+            )
+        })?;
 
         // FIXME: should not abort just because schema of one file did not
         //        fit
         if inp_meta.schema != meta.table_name {
-            return Err(CheckError::SchemaMismatch {
-                               schema: meta.table_name.clone(),
-                               data: inp_meta.schema.clone(),
-                           }
-                           .at(Location::File(input_file
-                                                  .as_ref()
-                                                  .to_string_lossy()
-                                                  .to_string())));
+            return Err(
+                CheckError::SchemaMismatch {
+                    schema: meta.table_name.clone(),
+                    data: inp_meta.schema.clone(),
+                }.at(Location::File(
+                    input_file.as_ref().to_string_lossy().to_string(),
+                )),
+            );
         }
 
         match schema.validate_file(&input_file) {
@@ -95,9 +100,11 @@ fn cmd_check<P: AsRef<path::Path>, Q: AsRef<path::Path>>
                  input_file.as_ref().to_string_lossy()),
             Err(errs) => {
                 all_good = false;
-                println!("{} {}",
-                         Color::Red.paint(Attr::Bold.paint("✗")),
-                         input_file.as_ref().to_string_lossy());
+                println!(
+                    "{} {}",
+                    Color::Red.paint(Attr::Bold.paint("✗")),
+                    input_file.as_ref().to_string_lossy()
+                );
                 for e in errs {
                     e.print_help();
                 }
@@ -124,27 +131,35 @@ fn cmd_pretty<P: AsRef<path::Path>>(schema_path: P) {
         .safe_unwrap("already verified UTF8")
         .to_owned();
 
-    let meta = csvx::parse_filename(meta_fn.clone()).expect("error loading schema -
-            please validate first");
+    let meta = csvx::parse_filename(meta_fn.clone()).expect(
+        "error loading schema -
+            please validate first",
+    );
 
     // load schema
-    let schema = csvx::CsvxSchema::from_file(schema_path).expect("error loading schema -
-            please validate first");
+    let schema = csvx::CsvxSchema::from_file(schema_path).expect(
+        "error loading schema -
+            please validate first",
+    );
 
-    println!("{}\n{}\n\n* {}\n* {}\n\n",
-             meta.table_name,
-             underline(&meta.table_name, '='),
-             meta.date,
-             meta.schema);
+    println!(
+        "{}\n{}\n\n* {}\n* {}\n\n",
+        meta.table_name,
+        underline(&meta.table_name, '='),
+        meta.date,
+        meta.schema
+    );
 
     for col in schema.iter_columns() {
         match col.ty {
             ColumnType::Enum(_) => {
                 let header = format!("{}: `ENUM`", col.id);
-                print!("{}\n{}\n\n* `{}` \n",
-                       header,
-                       underline(&header, '-'),
-                       col.ty);
+                print!(
+                    "{}\n{}\n\n* `{}` \n",
+                    header,
+                    underline(&header, '-'),
+                    col.ty
+                );
             }
             _ => {
                 let header = format!("{}: `{}`", col.id, col.ty);
@@ -172,27 +187,30 @@ fn cmd_gen<P: AsRef<path::Path>>(schema_path: P) {
         .safe_unwrap("already verified UTF8")
         .to_owned();
 
-    let meta = csvx::parse_filename(meta_fn.clone()).expect("error loading schema -
-            please validate first");
+    let meta = csvx::parse_filename(meta_fn.clone()).expect(
+        "error loading schema -
+            please validate first",
+    );
 
     // load schema
-    let schema = csvx::CsvxSchema::from_file(schema_path).expect("error loading schema -
-            please validate first");
+    let schema = csvx::CsvxSchema::from_file(schema_path).expect(
+        "error loading schema -
+            please validate first",
+    );
 
     println!("struct {} {{", meta.table_name.replace("-", "_"),);
 
     for col in schema.iter_columns() {
         let mut ty_s = match col.ty {
-                ColumnType::String => "String",
-                ColumnType::Bool => "bool",
-                ColumnType::Integer => "i64",
-                ColumnType::Enum(ref variants) => "FIXME",
-                ColumnType::Decimal => "String",
-                ColumnType::Date => "NaiveDate",
-                ColumnType::DateTime => "NaiveDateTime",
-                ColumnType::Time => "NaiveTime",
-            }
-            .to_owned();
+            ColumnType::String => "String",
+            ColumnType::Bool => "bool",
+            ColumnType::Integer => "i64",
+            ColumnType::Enum(ref variants) => "FIXME",
+            ColumnType::Decimal => "String",
+            ColumnType::Date => "NaiveDate",
+            ColumnType::DateTime => "NaiveDateTime",
+            ColumnType::Time => "NaiveTime",
+        }.to_owned();
         if col.constraints.nullable {
             ty_s = format!("Option<{}>", ty_s);
         }
@@ -205,40 +223,56 @@ fn main() {
     let app = App::new("csvx")
         .version("5.4.0")
         .about("csvx utility")
-        .subcommand(SubCommand::with_name("check")
-                        .about("Check csvx files for conformance")
-                        .arg(Arg::with_name("schema_path")
-                                 .help("Schema file to check against")
-                                 .required(true)
-                                 .takes_value(true))
-                        .arg(Arg::with_name("input_files")
-                                 .help("Input files to check")
-                                 .multiple(true)
-                                 .takes_value(true)))
-        .subcommand(SubCommand::with_name("pretty")
-                        .about("Generate Markdown documentation")
-                        .arg(Arg::with_name("schema_path")
-                                 .help("Schema to generate documentation for")
-                                 .required(true)
-                                 .takes_value(true)))
-        .subcommand(SubCommand::with_name("gen")
-                        .about("Generate Rust code structure")
-                        .arg(Arg::with_name("schema_path")
-                                 .help("Schema to generate code for")
-                                 .required(true)
-                                 .takes_value(true)));
+        .subcommand(
+            SubCommand::with_name("check")
+                .about("Check csvx files for conformance")
+                .arg(
+                    Arg::with_name("schema_path")
+                        .help("Schema file to check against")
+                        .required(true)
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("input_files")
+                        .help("Input files to check")
+                        .multiple(true)
+                        .takes_value(true),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("pretty")
+                .about("Generate Markdown documentation")
+                .arg(
+                    Arg::with_name("schema_path")
+                        .help("Schema to generate documentation for")
+                        .required(true)
+                        .takes_value(true),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("gen")
+                .about("Generate Rust code structure")
+                .arg(
+                    Arg::with_name("schema_path")
+                        .help("Schema to generate code for")
+                        .required(true)
+                        .takes_value(true),
+                ),
+        );
 
     let m = app.clone().get_matches();
 
     match m.subcommand {
         Some(ref cmd) if cmd.name == "check" => {
-            let res = cmd_check(cmd.matches
-                                    .value_of("schema_path")
-                                    .safe_unwrap("required argument"),
-                                cmd.matches
-                                    .values_of("input_files")
-                                    .map(|v| v.collect())
-                                    .unwrap_or_else(|| Vec::new()));
+            let res = cmd_check(
+                cmd.matches.value_of("schema_path").safe_unwrap(
+                    "required argument",
+                ),
+                cmd.matches
+                    .values_of("input_files")
+                    .map(|v| v.collect())
+                    .unwrap_or_else(|| Vec::new()),
+            );
 
             match res {
                 Err(e) => {
@@ -255,14 +289,14 @@ fn main() {
             }
         }
         Some(ref cmd) if cmd.name == "pretty" => {
-            cmd_pretty(cmd.matches
-                           .value_of("schema_path")
-                           .safe_unwrap("required argument"));
+            cmd_pretty(cmd.matches.value_of("schema_path").safe_unwrap(
+                "required argument",
+            ));
         }
         Some(ref cmd) if cmd.name == "gen" => {
-            cmd_gen(cmd.matches
-                        .value_of("schema_path")
-                        .safe_unwrap("required argument"));
+            cmd_gen(cmd.matches.value_of("schema_path").safe_unwrap(
+                "required argument",
+            ));
         }
         _ => {
             app.write_help(&mut io::stdout()).unwrap();

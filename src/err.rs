@@ -116,10 +116,12 @@ pub trait HelpPrinter {
 
 impl<E: fmt::Display + Helpful> HelpPrinter for ErrorAtLocation<E, Location> {
     fn print_help(&self) {
-        println!("{}{} {}",
-                 Attr::Bold.paint((Color::Red.paint("error"))),
-                 Attr::Bold.paint(":"),
-                 Attr::Bold.paint(self.error()));
+        println!(
+            "{}{} {}",
+            Attr::Bold.paint((Color::Red.paint("error"))),
+            Attr::Bold.paint(":"),
+            Attr::Bold.paint(self.error())
+        );
         match *self.location() {
             Location::Unspecified => (),
             _ => println!("  --> {}", Color::Yellow.paint(self.location())),
@@ -261,7 +263,7 @@ impl Helpful for CheckError {
                 version 5, the resulting filename should be: \
                 `animals-2_20151231_csvx-schema-5.csv`. \n\
                 Note that filenames are case sensitive!"
-                        .to_owned()
+                    .to_owned()
             }
             CheckError::SchemaNotAFile => "The schema you supplied is not a valid file".to_owned(),
             CheckError::InvalidCsvxFilename(_) => {
@@ -277,13 +279,13 @@ impl Helpful for CheckError {
                 Example: With a table name of `nyc-zoo`, a date of Dec 31st, \
                 2015 and using a schema named `animals-2`, the resulting \
                 filename should be `nyc-zoo_20151231_animals-2.csv`."
-                        .to_owned()
+                    .to_owned()
             }
             CheckError::SchemaPathUtf8Error => {
                 "The filename you supplied contained UTF-8 errors. CSVX \
                 filenames should only contain ASCII characters, please rename \
                 the file and try again."
-                        .to_owned()
+                    .to_owned()
             }
             CheckError::SchemaLoadError(ref e) => e.help(),
             CheckError::SchemaMismatch { .. } => {
@@ -293,7 +295,7 @@ impl Helpful for CheckError {
                 schema name is `animals-2`. Every data file validated against \
                 this schema must end with `_animals-2.csv`; e.g. \
                 `zoo-nyc_20170401_animals-2.csv`."
-                        .to_owned()
+                    .to_owned()
             }
         }
     }
@@ -340,12 +342,12 @@ impl Helpful for ColumnConstraintsError {
                 "The constraints could be not recognized. Constraints must be \
                 all uppercase letters, comma-separated, with no spaces in \
                 between."
-                        .to_owned()
+                    .to_owned()
             }
             ColumnConstraintsError::UnknownConstraint(_) => {
                 "The constraint is not known to be a valid constraint. Valid \
                 constraints are `NULLABLE` and `UNIQUE`."
-                        .to_owned()
+                    .to_owned()
             }
         }
     }
@@ -389,14 +391,14 @@ impl Helpful for ColumnTypeError {
                 "The column type specified is not known. Valid types are \
                 `STRING`, `BOOL`, `INTEGER`, `ENUM(...)`, `DECIMAL`, \
                 `DATE`, `DATETIME` and `TIME`"
-                        .to_owned()
+                    .to_owned()
             }
             ColumnTypeError::BadEnum(_) => {
                 "The `ENUM` specified is not valid. Enums must be of the form \
                 `ENUM(V1,V2,V3,` ... `)`. Note that variants must be of \
                 uppercase letters and numbers only, separated by commas, \
                 with no spaces allowed in between"
-                        .to_owned()
+                    .to_owned()
             }
         }
     }
@@ -479,7 +481,7 @@ impl Helpful for SchemaLoadError {
                 separators (only commas are valid separators) or invalid \
                 decimal separators (decimal point must be dots `.`, not \
                 commas or other locale specific characters."
-                        .to_owned()
+                    .to_owned()
             }
             SchemaLoadError::MissingHeader => "The CSV file has no header; it's empty.".to_owned(),
             SchemaLoadError::BadHeader => {
@@ -487,12 +489,12 @@ impl Helpful for SchemaLoadError {
                 a schema file contains exactly four fields and looks like \
                 this: \n\n\
                 id,type,constraints,description"
-                        .to_owned()
+                    .to_owned()
             }
             SchemaLoadError::BadIdentifier(_) => {
                 "A valid identifier must start with a lowercase letter and \
                 contain only lowercase letters, numbers or underscores."
-                        .to_owned()
+                    .to_owned()
             }
             SchemaLoadError::BadType(ref e) => e.help(),
             SchemaLoadError::BadConstraints(ref e) => e.help(),
@@ -577,7 +579,7 @@ impl Helpful for ValidationError {
             ValidationError::Csv(_) => {
                 "An error occured parsing the CSV fragment. Please ensure \
                 the CSV file is valid CSVX and RFC4180."
-                        .to_owned()
+                    .to_owned()
             }
             ValidationError::MissingHeaders => {
                 "The number of headers in the file does not match the specification".to_owned()
@@ -589,7 +591,7 @@ impl Helpful for ValidationError {
             ValidationError::SchemaMismatch => {
                 "The schema used loaded does not match the API call. This is \
                 most likely a programming error."
-                        .to_owned()
+                    .to_owned()
             }
 
         }
@@ -674,27 +676,29 @@ impl Helpful for ValueError {
                 "The value provided is not a valid BOOL. The only \
                 acceptable for a boolean field are `TRUE` and \
                 `FALSE`."
-                        .to_owned()
+                    .to_owned()
             }
             ValueError::InvalidInt(_) => {
                 "The value is not a valid integer. Integers must \
                 contain only digits and no leading zeros."
-                        .to_owned()
+                    .to_owned()
             }
             ValueError::InvalidEnum(_, ref variants) => {
-                format!("The value is not a valid value for the ENUM. Valid
+                format!(
+                    "The value is not a valid value for the ENUM. Valid
                 values for this ENUM are: {}.",
-                        variants
-                            .iter()
-                            .map(|s| "`".to_owned() + s.as_ref() + "`")
-                            .collect::<Vec<_>>()
-                            .join(", "))
+                    variants
+                        .iter()
+                        .map(|s| "`".to_owned() + s.as_ref() + "`")
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
             }
             ValueError::InvalidDecimal(_) => {
                 "The value is not a valid DECIMAL. Decimal values must \
                 only contain digits and a single decimal separator, in \
                 the form of a dot `.`!"
-                        .to_owned()
+                    .to_owned()
             }
             ValueError::InvalidDate(_) => {
                 "The value is not a valid DATE. Date values must be formatted \
@@ -702,7 +706,7 @@ impl Helpful for ValueError {
                 digit month and DD the two-digit day. Example: The 31st of \
                 Dec 2015 would be encoded as `20151231`.\n\n\
                 Otherwise dates must be valid calendar dates."
-                        .to_owned()
+                    .to_owned()
             }
             ValueError::InvalidDateTime(_) => {
                 "The value is not a valid DATETIME. Datetime values must be
@@ -714,7 +718,7 @@ impl Helpful for ValueError {
                 `20151231230158`.\n\n
                 Otherwise datetimes must correspond to valid calendar dates \
                 and clock times."
-                        .to_owned()
+                    .to_owned()
             }
             ValueError::InvalidTime(_) => {
                 "The value is not a valid TIME. Time values must be
@@ -722,12 +726,12 @@ impl Helpful for ValueError {
                 two-digit minute and SS the two-digit second.\n\n\
                 Ex: 23:01:58 would be encoded as `230158`.\n\n
                 Times must be valid clock times."
-                        .to_owned()
+                    .to_owned()
             }
             ValueError::NonNullable => {
                 "The field was not marked as `NULLABLE`, but did not contain \
                 a value."
-                        .to_owned()
+                    .to_owned()
             }
         }
     }
