@@ -130,7 +130,7 @@ impl<E: fmt::Display + Helpful> HelpPrinter for ErrorAtLocation<E, Location> {
         let term_width = cmp::max(dims.0, 4);
         let out = textwrap::wrap(self.error.help().as_str(), term_width - 3)
             .into_iter()
-            .map(|line| textwrap::indent(line.as_str(), "   "))
+            .map(|line| textwrap::indent(line.as_ref(), "   "))
             .fold(String::new(), |s1, s2| s1 + s2.as_str());
         println!("{}", out);
     }
